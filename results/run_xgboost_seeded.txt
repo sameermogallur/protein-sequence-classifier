@@ -1,0 +1,558 @@
+Step 1: Load data
+  FASTA file: data/raw/uniprotkb_reviewed_true_AND_reviewed_tr_2026_02_26.fasta.gz
+
+  Biological: 500 sequences (real UniProt)
+  Scrambled: 500 sequences (shuffled biological sequences)
+  Designed: 110 sequences (binder FASTA)
+  Mode: 3-class (Biological / Scrambled / Designed)
+
+  Amino acid frequencies in biological data:
+    A: 0.0796
+    C: 0.0162
+    D: 0.0544
+    E: 0.0647
+    F: 0.0379
+    G: 0.0656
+    H: 0.0235
+    I: 0.0518
+    K: 0.0551
+    L: 0.0927
+    M: 0.0221
+    N: 0.0440
+    P: 0.0501
+    Q: 0.0410
+    R: 0.0504
+    S: 0.0856
+    T: 0.0598
+    V: 0.0633
+    W: 0.0123
+    Y: 0.0299
+
+Step 2: Feature extraction
+  Feature breakdown:
+    Amino acid frequencies:  20
+    Dipeptide frequencies:   400
+    Physicochemical:         9
+    Total:                   429
+
+  Feature matrix: 1110 sequences × 429 features
+
+  Average amino acid frequencies by class (first 20 features):
+  AA     Biological    Scrambled     Designed
+  A          0.0788       0.0788       0.0923
+  C          0.0173       0.0173       0.0037
+  D          0.0545       0.0545       0.0449
+  E          0.0637       0.0637       0.1237
+  F          0.0408       0.0408       0.0332
+  G          0.0683       0.0683       0.0547
+  H          0.0234       0.0234       0.0153
+  I          0.0535       0.0535       0.0536
+  K          0.0573       0.0573       0.0789
+  L          0.0945       0.0945       0.1015
+  M          0.0229       0.0229       0.0229
+  N          0.0442       0.0442       0.0325
+  P          0.0502       0.0502       0.0363
+  Q          0.0385       0.0385       0.0289
+  R          0.0508       0.0508       0.0459
+  S          0.0758       0.0758       0.0634
+  T          0.0564       0.0564       0.0475
+  V          0.0644       0.0644       0.0683
+  W          0.0131       0.0131       0.0166
+  Y          0.0315       0.0315       0.0359
+
+Step 3: Train and evaluate
+  Splitting 80% train / 20% test (stratified); StandardScaler fit on train for logistic regression only.
+
+  --- LogisticRegression (scaled features) ---
+  Accuracy: 67.12%
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+  Biological       0.65      0.67      0.66       100
+   Scrambled       0.67      0.69      0.68       100
+    Designed       0.81      0.59      0.68        22
+
+    accuracy                           0.67       222
+   macro avg       0.71      0.65      0.67       222
+weighted avg       0.68      0.67      0.67       222
+
+  Confusion Matrix:
+                    Pred Bio  Pred Scr  Pred Des
+  Actual Bio           67          31           2
+  Actual Scr           30          69           1
+  Actual Des            6           3          13
+
+  --- RandomForestClassifier (unscaled features) ---
+  Accuracy: 66.67%
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+  Biological       0.64      0.65      0.64       100
+   Scrambled       0.63      0.62      0.63       100
+    Designed       0.95      0.95      0.95        22
+
+    accuracy                           0.67       222
+   macro avg       0.74      0.74      0.74       222
+weighted avg       0.67      0.67      0.67       222
+
+  Confusion Matrix:
+                    Pred Bio  Pred Scr  Pred Des
+  Actual Bio           65          35           0
+  Actual Scr           37          62           1
+  Actual Des            0           1          21
+
+  --- XGBClassifier (unscaled features) ---
+  Accuracy: 69.82%
+
+  Classification Report:
+              precision    recall  f1-score   support
+
+  Biological       0.67      0.65      0.66       100
+   Scrambled       0.67      0.68      0.67       100
+    Designed       0.96      1.00      0.98        22
+
+    accuracy                           0.70       222
+   macro avg       0.76      0.78      0.77       222
+weighted avg       0.70      0.70      0.70       222
+
+  Confusion Matrix:
+                    Pred Bio  Pred Scr  Pred Des
+  Actual Bio           65          34           1
+  Actual Scr           32          68           0
+  Actual Des            0           0          22
+
+Step 4: Feature importance
+  LogisticRegression:
+  Class Biological — top 10 features with highest positive coefficients:
+     1. M: +1.158371
+     2. MK: +0.888112
+     3. MA: +0.673154
+     4. EE: +0.610859
+     5. YF: +0.590690
+     6. MP: +0.560097
+     7. CR: +0.559438
+     8. RR: +0.548069
+     9. QQ: +0.547012
+    10. FD: +0.536977
+  Class Scrambled — top 10 features with highest positive coefficients:
+     1. LM: +0.875357
+     2. SM: +0.869553
+     3. GP: +0.706817
+     4. TM: +0.665375
+     5. GM: +0.656094
+     6. VM: +0.648164
+     7. LF: +0.639760
+     8. FM: +0.630543
+     9. DM: +0.621219
+    10. NM: +0.620298
+  Class Designed — top 10 features with highest positive coefficients:
+     1. EE: +0.499615
+     2. PE: +0.368127
+     3. KI: +0.308502
+     4. EW: +0.301511
+     5. EL: +0.269835
+     6. WL: +0.260621
+     7. DT: +0.253703
+     8. IT: +0.246524
+     9. DP: +0.233030
+    10. QG: +0.230072
+
+  RandomForestClassifier:
+  Top 20 features by importance:
+     1. EE: 0.018359
+     2. E: 0.012966
+     3. C: 0.010897
+     4. turn_fraction: 0.010065
+     5. helix_fraction: 0.009459
+     6. GP: 0.008775
+     7. per_residue_weight: 0.007952
+     8. net_charge_per_residue: 0.007525
+     9. LE: 0.007404
+    10. ES: 0.006432
+    11. PE: 0.006304
+    12. RR: 0.006181
+    13. SS: 0.005824
+    14. G: 0.005743
+    15. DL: 0.005425
+    16. QM: 0.005340
+    17. S: 0.005211
+    18. R: 0.005035
+    19. TP: 0.005009
+    20. EL: 0.004865
+
+  XGBClassifier:
+  Top 20 features by importance:
+     1. QM: 0.066875
+     2. YC: 0.037886
+     3. E: 0.029392
+     4. C: 0.028767
+     5. HI: 0.017472
+     6. R: 0.013756
+     7. WG: 0.013116
+     8. FQ: 0.010293
+     9. CK: 0.009933
+    10. YV: 0.008903
+    11. WC: 0.008690
+    12. DV: 0.007451
+    13. HW: 0.007339
+    14. CH: 0.007268
+    15. YA: 0.007115
+    16. YW: 0.007050
+    17. WA: 0.006797
+    18. YY: 0.006765
+    19. FL: 0.006747
+    20. HP: 0.006649
+
+Step 5: Per-binder prediction table
+  LogisticRegression (scaled binder features):
+  Sequence ID                                Predicted       P(Biological)   P(Scrambled)    P(Designed)
+  TolA_III_6s3w_l82_s541331_mpnn10_model2    Biological             0.9999         0.0000         0.0001
+  latent                                     Biological             0.9995         0.0000         0.0005
+  TolA_III_6s3w_l105_s685922_mpnn6_model2    Biological             0.9689         0.0037         0.0273
+  TolA_III_6s3w_l109_s729257_mpnn18_model2   Biological             0.7642         0.0000         0.2358
+  TolA_III_6s3w_l98_s375237_mpnn7_model1     Biological             0.5235         0.0000         0.4765
+  TolA_III_6s3w_l136_s737523_mpnn2_model2    Designed               0.4991         0.0000         0.5009
+  0945_latent                                Biological             0.4836         0.0699         0.4465
+  rank002_design_290_B                       Designed               0.1262         0.0000         0.8738
+  TolA_III_6s3w_l127_s418137_mpnn16_model2   Designed               0.0997         0.0000         0.9003
+  TolA_III_6s3w_l99_s673276_mpnn11_model1    Designed               0.0208         0.0002         0.9790
+  3-TolA-III_complex_l90_s751958_mpnn2_...   Designed               0.0095         0.0000         0.9905
+  TolA_III_6s3w_l105_s685922_mpnn4_model1    Scrambled              0.0091         0.9905         0.0004
+  latent                                     Designed               0.0080         0.0000         0.9920
+  TolA_III_6s3w_l126_s277889_mpnn6_model1    Designed               0.0071         0.0000         0.9929
+  rank001_design_365_B                       Designed               0.0064         0.0000         0.9936
+  rank008_design_183_B                       Designed               0.0052         0.0000         0.9948
+  2_lpg0945_bindcraft_1_l123_s200413_mp...   Designed               0.0051         0.0000         0.9949
+  latent                                     Designed               0.0051         0.0004         0.9944
+  TolA_III_6s3w_l143_s725268_mpnn3_model1    Designed               0.0051         0.0000         0.9949
+  2_lpg0945_bindcraft_2_l126_s315321_mp...   Designed               0.0049         0.0000         0.9951
+  TolA_III_6s3w_l146_s15872_mpnn20_model2    Designed               0.0047         0.0000         0.9953
+  2-TolA-III_complex_l90_s751958_mpnn3_...   Designed               0.0043         0.0000         0.9957
+  1-TolA-III_complex_l87_s176785_mpnn20...   Designed               0.0042         0.0000         0.9958
+  latent                                     Designed               0.0037         0.0000         0.9963
+  latent                                     Designed               0.0035         0.0000         0.9965
+  RAVj_l150_s983467_mpnn11_model2_B          Designed               0.0035         0.0000         0.9965
+  0945_latent                                Designed               0.0034         0.0000         0.9966
+  2_lpg0945_bindcraft_3_l127_s802372_mp...   Designed               0.0033         0.0000         0.9967
+  rank010_design_460_B                       Designed               0.0030         0.0000         0.9970
+  lpg0944_4xa9_a_l88_s669909_mpnn3_mode...   Designed               0.0029         0.0000         0.9971
+  latent                                     Designed               0.0028         0.0000         0.9972
+  latent                                     Designed               0.0025         0.0001         0.9973
+  latent                                     Designed               0.0025         0.0000         0.9975
+  TolA_III_6s3w_l112_s126997_mpnn4_model2    Designed               0.0023         0.0000         0.9977
+  3_lpg0945_bindcraft_1_l123_s200413_mp...   Designed               0.0020         0.0000         0.9980
+  TolA_III_6s3w_l136_s737523_mpnn1_model1    Designed               0.0018         0.0000         0.9982
+  lpg0944_4xa9_a_l122_s954268_mpnn7_mod...   Designed               0.0017         0.0000         0.9983
+  rank001_design_272_B                       Designed               0.0014         0.0000         0.9986
+  rank003_design_397_B                       Designed               0.0014         0.0000         0.9986
+  lpg0944_4xa9_a_l80_s717555_mpnn17_mod...   Designed               0.0013         0.0000         0.9987
+  latent                                     Designed               0.0013         0.0000         0.9987
+  TolA_III_6s3w_l127_s996199_mpnn2_model1    Designed               0.0013         0.0009         0.9979
+  TolA_III_6s3w_l93_s509206_mpnn5_model2     Designed               0.0010         0.0000         0.9990
+  RAVj_l147_s620757_mpnn17_model2_B          Designed               0.0009         0.0000         0.9991
+  TolA_III_6s3w_l139_s407842_mpnn3_model2    Designed               0.0009         0.0000         0.9991
+  3_lpg0945_bindcraft_2_l122_s897448_mp...   Designed               0.0009         0.0003         0.9988
+  TolA_III_6s3w_l131_s709682_mpnn7_model1    Designed               0.0008         0.0015         0.9978
+  4_lpg0945_bindcraft_1_l121_s772610_mp...   Designed               0.0007         0.0020         0.9974
+  RAVj_l147_s620757_mpnn15_model2_B          Designed               0.0006         0.0000         0.9994
+  TolA_III_6s3w_l98_s375237_mpnn9_model1     Designed               0.0006         0.0000         0.9994
+  1_lpg0945_bindcraft_1_l124_s66702_mpn...   Designed               0.0006         0.0007         0.9988
+  TolA_III_6s3w_l132_s980057_mpnn11_model1   Designed               0.0005         0.0000         0.9995
+  lpg0944_4xa9_a_l114_s314104_mpnn7_mod...   Designed               0.0005         0.0000         0.9995
+  TolA_III_6s3w_l143_s725268_mpnn2_model2    Designed               0.0004         0.0000         0.9996
+  lpg0944_4xa9_a_l114_s314104_mpnn9_mod...   Designed               0.0004         0.0000         0.9996
+  TolA_III_6s3w_l77_s253329_mpnn2_model1     Designed               0.0004         0.0000         0.9996
+  lpg0944_4xa9_a_l88_s669909_mpnn14_mod...   Designed               0.0004         0.0000         0.9996
+  0945_latent                                Designed               0.0004         0.0006         0.9990
+  TolA_III_6s3w_l132_s980057_mpnn9_model2    Designed               0.0004         0.0000         0.9996
+  TolA_III_6s3w_l150_s685010_mpnn14_model2   Scrambled              0.0003         0.5685         0.4313
+  rank008_design_312_B                       Designed               0.0003         0.0000         0.9997
+  TolA_III_6s3w_l139_s407842_mpnn5_model2    Designed               0.0002         0.0000         0.9998
+  latent                                     Designed               0.0002         0.0000         0.9998
+  rank009_design_168_B                       Designed               0.0002         0.0000         0.9998
+  rank004_design_348_B                       Designed               0.0001         0.0004         0.9995
+  1_lpg0945_bindcraft_3_l125_s345020_mp...   Designed               0.0001         0.0000         0.9999
+  rank005_design_073_B                       Designed               0.0001         0.0000         0.9999
+  lpg0944_4xa9_a_l122_s954268_mpnn10_mo...   Designed               0.0001         0.0000         0.9999
+  TolA_III_6s3w_l96_s964230_mpnn9_model2     Designed               0.0001         0.0000         0.9999
+  rank002_design_458_B                       Designed               0.0000         0.0033         0.9967
+  TolA_III_6s3w_l93_s509206_mpnn2_model2     Designed               0.0000         0.0012         0.9988
+  4_lpg0945_bindcraft_3_l122_s549392_mp...   Designed               0.0000         0.0003         0.9996
+  rank009_design_492_B                       Designed               0.0000         0.0000         1.0000
+  rank007_design_318_B                       Designed               0.0000         0.0000         1.0000
+  rank006_design_298_B                       Designed               0.0000         0.0000         1.0000
+  TolA_III_6s3w_l113_s645730_mpnn16_model2   Designed               0.0000         0.0000         1.0000
+  3_lpg0945_bindcraft_3_l127_s802372_mp...   Designed               0.0000         0.0000         1.0000
+  latent                                     Designed               0.0000         0.0000         1.0000
+  rank003_design_145_B                       Designed               0.0000         0.0000         1.0000
+  TolA_III_6s3w_l113_s645730_mpnn10_model1   Designed               0.0000         0.0000         1.0000
+  TolA_III_6s3w_l108_s854087_mpnn3_model2    Designed               0.0000         0.0004         0.9996
+  latent                                     Scrambled              0.0000         0.9895         0.0105
+  TolA_III_6s3w_l77_s253329_mpnn5_model1     Designed               0.0000         0.0002         0.9998
+  TolA_III_6s3w_l127_s996199_mpnn3_model2    Designed               0.0000         0.0000         1.0000
+  latent                                     Designed               0.0000         0.0000         1.0000
+  rank007_design_099_B                       Designed               0.0000         0.0000         1.0000
+  RAVj_l146_s280413_mpnn3_model2_B           Designed               0.0000         0.0000         1.0000
+  0945_latent                                Designed               0.0000         0.0035         0.9965
+  TolA_III_6s3w_l135_s737415_mpnn14_model2   Designed               0.0000         0.0003         0.9997
+  TolA_III_6s3w_l108_s854087_mpnn2_model2    Designed               0.0000         0.0000         1.0000
+  rank006_design_412_B                       Designed               0.0000         0.0000         1.0000
+  TolA_III_6s3w_l96_s964230_mpnn15_model2    Designed               0.0000         0.0000         1.0000
+  latent                                     Designed               0.0000         0.0030         0.9970
+  0945_latent                                Designed               0.0000         0.0114         0.9886
+  lpg0944_4xa9_a_l87_s880725_mpnn1_mode...   Designed               0.0000         0.0000         1.0000
+  lpg0944_4xa9_a_l106_s297673_mpnn2_mod...   Designed               0.0000         0.0001         0.9999
+  RAVj_l95_s778240_mpnn12_model2_B           Designed               0.0000         0.0000         1.0000
+  lpg0944_4xa9_a_l106_s297673_mpnn17_mo...   Designed               0.0000         0.0000         1.0000
+  TolA_III_6s3w_l132_s116694_mpnn12_model1   Designed               0.0000         0.0000         1.0000
+  rank010_design_357_B                       Designed               0.0000         0.0000         1.0000
+  latent                                     Designed               0.0000         0.0031         0.9969
+  rank004_design_336_B                       Designed               0.0000         0.0001         0.9999
+  rank005_design_435_B                       Designed               0.0000         0.0316         0.9684
+  RAVj_l95_s778240_mpnn5_model2_B            Designed               0.0000         0.0000         1.0000
+  1_lpg0945_bindcraft_2_l124_s79903_mpn...   Designed               0.0000         0.0000         1.0000
+  TolA_III_6s3w_l100_s199085_mpnn10_model2   Designed               0.0000         0.0000         1.0000
+  latent                                     Designed               0.0000         0.0095         0.9905
+  TolA_III_6s3w_l74_s357762_mpnn17_model2    Designed               0.0000         0.0025         0.9975
+  TolA_III_6s3w_l97_s741123_mpnn8_model2     Designed               0.0000         0.0045         0.9955
+  lpg0944_4xa9_a_l87_s880725_mpnn3_mode...   Designed               0.0000         0.0023         0.9977
+
+  RandomForestClassifier (unscaled binder features):
+  Sequence ID                                Predicted       P(Biological)   P(Scrambled)    P(Designed)
+  0945_latent                                Scrambled              0.3350         0.3850         0.2800
+  latent                                     Designed               0.3250         0.2850         0.3900
+  latent                                     Designed               0.3150         0.1950         0.4900
+  TolA_III_6s3w_l105_s685922_mpnn4_model1    Designed               0.2850         0.3050         0.4100
+  TolA_III_6s3w_l150_s685010_mpnn14_model2   Designed               0.2750         0.2400         0.4850
+  3-TolA-III_complex_l90_s751958_mpnn2_...   Designed               0.2550         0.2700         0.4750
+  TolA_III_6s3w_l98_s375237_mpnn7_model1     Designed               0.1800         0.1100         0.7100
+  4_lpg0945_bindcraft_1_l121_s772610_mp...   Designed               0.1700         0.1400         0.6900
+  rank005_design_435_B                       Designed               0.1600         0.1500         0.6900
+  TolA_III_6s3w_l127_s996199_mpnn3_model2    Designed               0.1550         0.1250         0.7200
+  3_lpg0945_bindcraft_3_l127_s802372_mp...   Designed               0.1550         0.0900         0.7550
+  rank002_design_458_B                       Designed               0.1550         0.1300         0.7150
+  0945_latent                                Designed               0.1500         0.1650         0.6850
+  TolA_III_6s3w_l99_s673276_mpnn11_model1    Designed               0.1500         0.1050         0.7450
+  TolA_III_6s3w_l127_s418137_mpnn16_model2   Designed               0.1500         0.0700         0.7800
+  latent                                     Designed               0.1450         0.1050         0.7500
+  latent                                     Designed               0.1450         0.1250         0.7300
+  TolA_III_6s3w_l82_s541331_mpnn10_model2    Designed               0.1400         0.1100         0.7500
+  TolA_III_6s3w_l105_s685922_mpnn6_model2    Designed               0.1350         0.1850         0.6800
+  TolA_III_6s3w_l131_s709682_mpnn7_model1    Designed               0.1350         0.0750         0.7900
+  TolA_III_6s3w_l146_s15872_mpnn20_model2    Designed               0.1350         0.0800         0.7850
+  TolA_III_6s3w_l127_s996199_mpnn2_model1    Designed               0.1300         0.1200         0.7500
+  latent                                     Designed               0.1250         0.1300         0.7450
+  RAVj_l150_s983467_mpnn11_model2_B          Designed               0.1200         0.1350         0.7450
+  latent                                     Designed               0.1150         0.1150         0.7700
+  0945_latent                                Designed               0.1150         0.1350         0.7500
+  latent                                     Designed               0.1150         0.1100         0.7750
+  latent                                     Designed               0.1150         0.1050         0.7800
+  RAVj_l147_s620757_mpnn17_model2_B          Designed               0.1100         0.1050         0.7850
+  latent                                     Designed               0.1100         0.1250         0.7650
+  2_lpg0945_bindcraft_2_l126_s315321_mp...   Designed               0.1050         0.0900         0.8050
+  0945_latent                                Designed               0.1050         0.1050         0.7900
+  latent                                     Designed               0.1050         0.1550         0.7400
+  TolA_III_6s3w_l136_s737523_mpnn2_model2    Designed               0.1050         0.1000         0.7950
+  lpg0944_4xa9_a_l88_s669909_mpnn3_mode...   Designed               0.1050         0.0450         0.8500
+  rank002_design_290_B                       Designed               0.1000         0.0200         0.8800
+  TolA_III_6s3w_l93_s509206_mpnn2_model2     Designed               0.1000         0.1000         0.8000
+  latent                                     Designed               0.0950         0.1300         0.7750
+  latent                                     Designed               0.0900         0.0850         0.8250
+  2_lpg0945_bindcraft_1_l123_s200413_mp...   Designed               0.0900         0.0650         0.8450
+  latent                                     Designed               0.0850         0.1300         0.7850
+  1_lpg0945_bindcraft_1_l124_s66702_mpn...   Designed               0.0850         0.0800         0.8350
+  TolA_III_6s3w_l112_s126997_mpnn4_model2    Designed               0.0850         0.0800         0.8350
+  lpg0944_4xa9_a_l122_s954268_mpnn10_mo...   Designed               0.0800         0.0500         0.8700
+  TolA_III_6s3w_l109_s729257_mpnn18_model2   Designed               0.0750         0.1050         0.8200
+  latent                                     Designed               0.0750         0.0600         0.8650
+  TolA_III_6s3w_l139_s407842_mpnn3_model2    Designed               0.0750         0.0850         0.8400
+  0945_latent                                Designed               0.0750         0.0700         0.8550
+  latent                                     Designed               0.0750         0.1100         0.8150
+  TolA_III_6s3w_l100_s199085_mpnn10_model2   Designed               0.0700         0.0700         0.8600
+  TolA_III_6s3w_l126_s277889_mpnn6_model1    Designed               0.0700         0.0250         0.9050
+  3_lpg0945_bindcraft_1_l123_s200413_mp...   Designed               0.0700         0.0850         0.8450
+  TolA_III_6s3w_l132_s980057_mpnn9_model2    Designed               0.0700         0.0650         0.8650
+  4_lpg0945_bindcraft_3_l122_s549392_mp...   Designed               0.0650         0.0500         0.8850
+  lpg0944_4xa9_a_l114_s314104_mpnn7_mod...   Designed               0.0650         0.0100         0.9250
+  rank003_design_145_B                       Designed               0.0650         0.0350         0.9000
+  1_lpg0945_bindcraft_3_l125_s345020_mp...   Designed               0.0650         0.0650         0.8700
+  1-TolA-III_complex_l87_s176785_mpnn20...   Designed               0.0600         0.0350         0.9050
+  latent                                     Designed               0.0600         0.0850         0.8550
+  lpg0944_4xa9_a_l122_s954268_mpnn7_mod...   Designed               0.0600         0.0550         0.8850
+  RAVj_l147_s620757_mpnn15_model2_B          Designed               0.0600         0.0350         0.9050
+  TolA_III_6s3w_l77_s253329_mpnn5_model1     Designed               0.0600         0.0700         0.8700
+  lpg0944_4xa9_a_l87_s880725_mpnn1_mode...   Designed               0.0600         0.0500         0.8900
+  lpg0944_4xa9_a_l88_s669909_mpnn14_mod...   Designed               0.0600         0.0700         0.8700
+  rank001_design_365_B                       Designed               0.0600         0.0700         0.8700
+  rank007_design_318_B                       Designed               0.0550         0.0750         0.8700
+  TolA_III_6s3w_l97_s741123_mpnn8_model2     Designed               0.0550         0.0300         0.9150
+  rank003_design_397_B                       Designed               0.0550         0.0550         0.8900
+  rank006_design_412_B                       Designed               0.0500         0.0250         0.9250
+  TolA_III_6s3w_l98_s375237_mpnn9_model1     Designed               0.0500         0.0400         0.9100
+  TolA_III_6s3w_l93_s509206_mpnn5_model2     Designed               0.0500         0.0450         0.9050
+  lpg0944_4xa9_a_l80_s717555_mpnn17_mod...   Designed               0.0500         0.0500         0.9000
+  lpg0944_4xa9_a_l114_s314104_mpnn9_mod...   Designed               0.0500         0.0350         0.9150
+  1_lpg0945_bindcraft_2_l124_s79903_mpn...   Designed               0.0450         0.0450         0.9100
+  TolA_III_6s3w_l77_s253329_mpnn2_model1     Designed               0.0450         0.0450         0.9100
+  TolA_III_6s3w_l113_s645730_mpnn10_model1   Designed               0.0450         0.0450         0.9100
+  TolA_III_6s3w_l143_s725268_mpnn2_model2    Designed               0.0450         0.0150         0.9400
+  TolA_III_6s3w_l132_s116694_mpnn12_model1   Designed               0.0450         0.0300         0.9250
+  2-TolA-III_complex_l90_s751958_mpnn3_...   Designed               0.0450         0.0700         0.8850
+  TolA_III_6s3w_l135_s737415_mpnn14_model2   Designed               0.0450         0.0350         0.9200
+  3_lpg0945_bindcraft_2_l122_s897448_mp...   Designed               0.0450         0.0500         0.9050
+  TolA_III_6s3w_l108_s854087_mpnn2_model2    Designed               0.0450         0.0250         0.9300
+  rank009_design_168_B                       Designed               0.0450         0.0550         0.9000
+  TolA_III_6s3w_l108_s854087_mpnn3_model2    Designed               0.0450         0.0200         0.9350
+  rank008_design_183_B                       Designed               0.0400         0.0300         0.9300
+  TolA_III_6s3w_l74_s357762_mpnn17_model2    Designed               0.0400         0.0250         0.9350
+  RAVj_l95_s778240_mpnn5_model2_B            Designed               0.0350         0.0450         0.9200
+  RAVj_l146_s280413_mpnn3_model2_B           Designed               0.0350         0.0350         0.9300
+  TolA_III_6s3w_l136_s737523_mpnn1_model1    Designed               0.0350         0.0300         0.9350
+  rank010_design_357_B                       Designed               0.0350         0.0400         0.9250
+  TolA_III_6s3w_l96_s964230_mpnn9_model2     Designed               0.0350         0.0400         0.9250
+  TolA_III_6s3w_l132_s980057_mpnn11_model1   Designed               0.0350         0.0550         0.9100
+  rank004_design_348_B                       Designed               0.0350         0.0350         0.9300
+  rank005_design_073_B                       Designed               0.0350         0.0100         0.9550
+  TolA_III_6s3w_l96_s964230_mpnn15_model2    Designed               0.0300         0.0200         0.9500
+  TolA_III_6s3w_l139_s407842_mpnn5_model2    Designed               0.0300         0.0550         0.9150
+  lpg0944_4xa9_a_l106_s297673_mpnn17_mo...   Designed               0.0300         0.0350         0.9350
+  TolA_III_6s3w_l113_s645730_mpnn16_model2   Designed               0.0250         0.0450         0.9300
+  rank007_design_099_B                       Designed               0.0250         0.0200         0.9550
+  2_lpg0945_bindcraft_3_l127_s802372_mp...   Designed               0.0250         0.0150         0.9600
+  rank008_design_312_B                       Designed               0.0250         0.0250         0.9500
+  lpg0944_4xa9_a_l106_s297673_mpnn2_mod...   Designed               0.0250         0.0400         0.9350
+  TolA_III_6s3w_l143_s725268_mpnn3_model1    Designed               0.0250         0.0400         0.9350
+  rank004_design_336_B                       Designed               0.0250         0.0400         0.9350
+  rank001_design_272_B                       Designed               0.0250         0.0250         0.9500
+  RAVj_l95_s778240_mpnn12_model2_B           Designed               0.0200         0.0150         0.9650
+  rank009_design_492_B                       Designed               0.0150         0.0300         0.9550
+  rank010_design_460_B                       Designed               0.0150         0.0550         0.9300
+  lpg0944_4xa9_a_l87_s880725_mpnn3_mode...   Designed               0.0150         0.0250         0.9600
+  rank006_design_298_B                       Designed               0.0150         0.0100         0.9750
+
+  XGBClassifier (unscaled binder features):
+  Sequence ID                                Predicted       P(Biological)   P(Scrambled)    P(Designed)
+  latent                                     Designed               0.2115         0.0013         0.7872
+  TolA_III_6s3w_l82_s541331_mpnn10_model2    Designed               0.1774         0.0002         0.8224
+  0945_latent                                Designed               0.1119         0.3747         0.5134
+  TolA_III_6s3w_l150_s685010_mpnn14_model2   Designed               0.0143         0.0024         0.9833
+  TolA_III_6s3w_l127_s418137_mpnn16_model2   Designed               0.0142         0.0011         0.9847
+  TolA_III_6s3w_l98_s375237_mpnn7_model1     Designed               0.0108         0.0002         0.9890
+  TolA_III_6s3w_l105_s685922_mpnn4_model1    Designed               0.0084         0.0429         0.9487
+  latent                                     Designed               0.0070         0.0025         0.9905
+  2_lpg0945_bindcraft_2_l126_s315321_mp...   Designed               0.0069         0.0003         0.9928
+  TolA_III_6s3w_l136_s737523_mpnn2_model2    Designed               0.0054         0.0019         0.9927
+  TolA_III_6s3w_l126_s277889_mpnn6_model1    Designed               0.0053         0.0010         0.9937
+  latent                                     Designed               0.0051         0.0019         0.9930
+  TolA_III_6s3w_l109_s729257_mpnn18_model2   Designed               0.0050         0.0004         0.9946
+  rank002_design_458_B                       Designed               0.0049         0.0051         0.9900
+  rank005_design_435_B                       Designed               0.0040         0.0075         0.9885
+  lpg0944_4xa9_a_l122_s954268_mpnn7_mod...   Designed               0.0039         0.0001         0.9959
+  0945_latent                                Designed               0.0039         0.0048         0.9913
+  0945_latent                                Designed               0.0035         0.0025         0.9940
+  RAVj_l150_s983467_mpnn11_model2_B          Designed               0.0035         0.0024         0.9940
+  latent                                     Designed               0.0035         0.0018         0.9948
+  TolA_III_6s3w_l139_s407842_mpnn3_model2    Designed               0.0035         0.0004         0.9961
+  3-TolA-III_complex_l90_s751958_mpnn2_...   Designed               0.0033         0.0184         0.9783
+  rank001_design_365_B                       Designed               0.0031         0.0003         0.9966
+  3_lpg0945_bindcraft_1_l123_s200413_mp...   Designed               0.0031         0.0023         0.9947
+  TolA_III_6s3w_l97_s741123_mpnn8_model2     Designed               0.0030         0.0049         0.9921
+  lpg0944_4xa9_a_l88_s669909_mpnn3_mode...   Designed               0.0029         0.0006         0.9965
+  TolA_III_6s3w_l112_s126997_mpnn4_model2    Designed               0.0028         0.0040         0.9931
+  latent                                     Designed               0.0026         0.0007         0.9967
+  4_lpg0945_bindcraft_1_l121_s772610_mp...   Designed               0.0026         0.0006         0.9968
+  TolA_III_6s3w_l143_s725268_mpnn3_model1    Designed               0.0025         0.0002         0.9974
+  latent                                     Designed               0.0023         0.0022         0.9955
+  TolA_III_6s3w_l100_s199085_mpnn10_model2   Designed               0.0022         0.0125         0.9852
+  0945_latent                                Designed               0.0021         0.0064         0.9915
+  2_lpg0945_bindcraft_1_l123_s200413_mp...   Designed               0.0021         0.0007         0.9972
+  latent                                     Designed               0.0021         0.0012         0.9967
+  1_lpg0945_bindcraft_3_l125_s345020_mp...   Designed               0.0020         0.0009         0.9971
+  2-TolA-III_complex_l90_s751958_mpnn3_...   Designed               0.0018         0.0012         0.9970
+  TolA_III_6s3w_l98_s375237_mpnn9_model1     Designed               0.0018         0.0002         0.9980
+  latent                                     Designed               0.0018         0.0021         0.9961
+  rank009_design_168_B                       Designed               0.0018         0.0003         0.9979
+  rank003_design_397_B                       Designed               0.0017         0.0028         0.9955
+  TolA_III_6s3w_l132_s980057_mpnn11_model1   Designed               0.0016         0.0009         0.9975
+  lpg0944_4xa9_a_l106_s297673_mpnn2_mod...   Designed               0.0015         0.0002         0.9983
+  0945_latent                                Designed               0.0014         0.0026         0.9960
+  TolA_III_6s3w_l131_s709682_mpnn7_model1    Designed               0.0014         0.0003         0.9983
+  TolA_III_6s3w_l77_s253329_mpnn2_model1     Designed               0.0013         0.0002         0.9985
+  TolA_III_6s3w_l99_s673276_mpnn11_model1    Designed               0.0013         0.0068         0.9920
+  3_lpg0945_bindcraft_3_l127_s802372_mp...   Designed               0.0012         0.0020         0.9968
+  TolA_III_6s3w_l127_s996199_mpnn3_model2    Designed               0.0012         0.0008         0.9979
+  rank001_design_272_B                       Designed               0.0012         0.0006         0.9982
+  TolA_III_6s3w_l96_s964230_mpnn9_model2     Designed               0.0012         0.0004         0.9985
+  TolA_III_6s3w_l132_s980057_mpnn9_model2    Designed               0.0012         0.0005         0.9983
+  TolA_III_6s3w_l135_s737415_mpnn14_model2   Designed               0.0011         0.0007         0.9983
+  TolA_III_6s3w_l96_s964230_mpnn15_model2    Designed               0.0011         0.0011         0.9979
+  RAVj_l147_s620757_mpnn15_model2_B          Designed               0.0011         0.0008         0.9982
+  lpg0944_4xa9_a_l106_s297673_mpnn17_mo...   Designed               0.0011         0.0003         0.9986
+  TolA_III_6s3w_l74_s357762_mpnn17_model2    Designed               0.0010         0.0008         0.9982
+  latent                                     Designed               0.0010         0.0025         0.9965
+  1_lpg0945_bindcraft_1_l124_s66702_mpn...   Designed               0.0010         0.0011         0.9979
+  TolA_III_6s3w_l143_s725268_mpnn2_model2    Designed               0.0010         0.0006         0.9984
+  rank008_design_183_B                       Designed               0.0010         0.0003         0.9988
+  3_lpg0945_bindcraft_2_l122_s897448_mp...   Designed               0.0010         0.0002         0.9988
+  TolA_III_6s3w_l127_s996199_mpnn2_model1    Designed               0.0010         0.0009         0.9982
+  2_lpg0945_bindcraft_3_l127_s802372_mp...   Designed               0.0009         0.0005         0.9986
+  TolA_III_6s3w_l105_s685922_mpnn6_model2    Designed               0.0009         0.0178         0.9813
+  TolA_III_6s3w_l136_s737523_mpnn1_model1    Designed               0.0008         0.0004         0.9988
+  1_lpg0945_bindcraft_2_l124_s79903_mpn...   Designed               0.0008         0.0008         0.9984
+  latent                                     Designed               0.0008         0.0020         0.9972
+  latent                                     Designed               0.0008         0.0019         0.9973
+  lpg0944_4xa9_a_l88_s669909_mpnn14_mod...   Designed               0.0008         0.0008         0.9985
+  RAVj_l147_s620757_mpnn17_model2_B          Designed               0.0008         0.0012         0.9980
+  TolA_III_6s3w_l108_s854087_mpnn2_model2    Designed               0.0008         0.0008         0.9984
+  latent                                     Designed               0.0008         0.0029         0.9963
+  TolA_III_6s3w_l146_s15872_mpnn20_model2    Designed               0.0007         0.0016         0.9977
+  rank005_design_073_B                       Designed               0.0007         0.0004         0.9989
+  1-TolA-III_complex_l87_s176785_mpnn20...   Designed               0.0007         0.0003         0.9989
+  latent                                     Designed               0.0007         0.0013         0.9980
+  lpg0944_4xa9_a_l87_s880725_mpnn1_mode...   Designed               0.0007         0.0006         0.9987
+  rank006_design_298_B                       Designed               0.0007         0.0004         0.9990
+  rank010_design_460_B                       Designed               0.0006         0.0008         0.9985
+  TolA_III_6s3w_l93_s509206_mpnn5_model2     Designed               0.0006         0.0002         0.9992
+  lpg0944_4xa9_a_l80_s717555_mpnn17_mod...   Designed               0.0006         0.0007         0.9987
+  4_lpg0945_bindcraft_3_l122_s549392_mp...   Designed               0.0006         0.0003         0.9992
+  TolA_III_6s3w_l108_s854087_mpnn3_model2    Designed               0.0006         0.0009         0.9985
+  TolA_III_6s3w_l77_s253329_mpnn5_model1     Designed               0.0006         0.0008         0.9986
+  lpg0944_4xa9_a_l114_s314104_mpnn7_mod...   Designed               0.0006         0.0004         0.9991
+  rank002_design_290_B                       Designed               0.0006         0.0013         0.9982
+  latent                                     Designed               0.0005         0.0019         0.9976
+  TolA_III_6s3w_l113_s645730_mpnn16_model2   Designed               0.0004         0.0021         0.9975
+  rank007_design_318_B                       Designed               0.0004         0.0019         0.9977
+  latent                                     Designed               0.0004         0.0015         0.9981
+  rank007_design_099_B                       Designed               0.0004         0.0003         0.9993
+  lpg0944_4xa9_a_l114_s314104_mpnn9_mod...   Designed               0.0004         0.0005         0.9991
+  rank006_design_412_B                       Designed               0.0004         0.0006         0.9991
+  TolA_III_6s3w_l139_s407842_mpnn5_model2    Designed               0.0004         0.0004         0.9992
+  RAVj_l146_s280413_mpnn3_model2_B           Designed               0.0004         0.0017         0.9980
+  lpg0944_4xa9_a_l122_s954268_mpnn10_mo...   Designed               0.0003         0.0001         0.9996
+  rank003_design_145_B                       Designed               0.0003         0.0002         0.9995
+  rank008_design_312_B                       Designed               0.0003         0.0004         0.9993
+  latent                                     Designed               0.0003         0.0010         0.9987
+  TolA_III_6s3w_l113_s645730_mpnn10_model1   Designed               0.0003         0.0007         0.9990
+  TolA_III_6s3w_l93_s509206_mpnn2_model2     Designed               0.0003         0.0002         0.9995
+  rank004_design_348_B                       Designed               0.0003         0.0014         0.9984
+  rank004_design_336_B                       Designed               0.0003         0.0008         0.9990
+  lpg0944_4xa9_a_l87_s880725_mpnn3_mode...   Designed               0.0002         0.0014         0.9984
+  rank009_design_492_B                       Designed               0.0002         0.0007         0.9991
+  rank010_design_357_B                       Designed               0.0002         0.0004         0.9994
+  TolA_III_6s3w_l132_s116694_mpnn12_model1   Designed               0.0002         0.0001         0.9997
+  RAVj_l95_s778240_mpnn12_model2_B           Designed               0.0001         0.0002         0.9997
+  RAVj_l95_s778240_mpnn5_model2_B            Designed               0.0001         0.0003         0.9996
+
+Model Comparison
+  Model                    Accuracy  Precision(macro)  Recall(macro)  F1(macro)
+  LogisticRegression        67.12%              0.71           0.65       0.67
+  RandomForestClassifier    66.67%              0.74           0.74       0.74
+  XGBClassifier             69.82%              0.76           0.78       0.77
+
+  Model                   F1(Biological)   F1(Scrambled)    F1(Designed)
+  LogisticRegression                0.66            0.68            0.68
+  RandomForestClassifier            0.64            0.63            0.95
+  XGBClassifier                     0.66            0.67            0.98
+

@@ -44,12 +44,23 @@ PHYSICOCHEMICAL_NAMES = [
 
 
 def get_feature_names():
-    """Return ordered feature names: 20 AAs, 400 dipeptides, 9 physicochemical labels."""
+    """Return the 429-element feature name list in fixed column order.
+
+    The order (20 AA frequencies → 400 dipeptides → 9 physicochemical) is a contract:
+    every model and every run must receive features in this exact column arrangement.
+    Reordering silently breaks cross-run comparisons and any serialized model.
+    """
     return list(AMINO_ACIDS) + DIPEPTIDE_NAMES + PHYSICOCHEMICAL_NAMES
 
 
 def load_fasta(fasta_path, max_sequences=None, min_length=50):
-    """Load protein sequences from a FASTA path (plain or gzip); return list of sequence strings."""
+    """Load protein sequences from a FASTA file (plain or gzip); return list of sequence strings.
+
+    Swiss-Prot reviewed sequences are the gold standard for natural proteins — manually
+    curated, non-redundant, and free of predicted or erroneous entries. The min_length=50
+    filter drops fragments too short to yield reliable physicochemical signals (e.g.,
+    isoelectric point and secondary structure estimates are unstable on very short peptides).
+    """
     opener = gzip.open if fasta_path.endswith(".gz") else open
     mode = "rt" if fasta_path.endswith(".gz") else "r"
     sequences = []
@@ -64,7 +75,13 @@ def load_fasta(fasta_path, max_sequences=None, min_length=50):
 
 
 def load_fasta_plain_with_ids(fasta_path, min_length=50):
-    """Load sequence IDs and strings from a non-gzipped FASTA; return parallel lists with the same filter."""
+    """Load sequence IDs and strings from a non-gzipped FASTA; return parallel lists.
+
+    The designed binders (from Teresa He, Godzik Lab) are delivered as a plain FASTA,
+    not Swiss-Prot. Sequence IDs are preserved alongside sequences so the per-binder
+    prediction table can be traced back to individual designs — essential for deciding
+    which candidates to advance to experimental validation.
+    """
     ids = []
     sequences = []
     with open(fasta_path, "r") as handle:
@@ -77,19 +94,45 @@ def load_fasta_plain_with_ids(fasta_path, min_length=50):
 
 
 def scramble_sequence(seq):
-    """Return a new string of the same length with the same characters randomly shuffled."""
+    """Return a new string with the same amino acids in a uniformly random order.
+
+    Scrambling is the null model for "does sequence order matter?" A scrambled sequence
+    has identical amino acid composition to its biological source — same hydrophobicity,
+    same charge, same monomer frequencies — but all order-dependent signals are destroyed:
+    dipeptide preferences, secondary structure propensities, binding motifs, and folding
+    nucleation sites. A classifier that successfully separates biological from scrambled
+    sequences must be detecting order information, not just compositional bias.
+    """
     return "".join(random.sample(seq, len(seq)))
 
 
 def get_aa_frequencies(sequence):
-    """Return a 20-element list of amino acid frequencies (one per AA in AMINO_ACIDS order)."""
+    """Return a 20-element list of per-residue amino acid frequencies in AMINO_ACIDS order.
+
+    Amino acid composition reflects evolutionary pressures and functional requirements.
+    Natural proteins are constrained by cellular chemistry (e.g., Cys is rare and usually
+    structural or redox-active). AI-designed binders optimized for a single target may be
+    enriched in binding-favored residues — Trp, Arg, Tyr — at frequencies that deviate
+    from the natural background. Scrambled sequences share the identical AA distribution as
+    their biological parent by construction, so composition alone cannot separate bio from
+    scrambled; it can, however, help distinguish designed from both.
+    """
     length = len(sequence)
     counts = Counter(sequence)
     return [counts.get(aa, 0) / length for aa in AMINO_ACIDS]
 
 
 def get_dipeptide_frequencies(sequence):
-    """Return 400 dipeptide frequencies (AA..YY alphabetically), normalized by valid dipeptide count."""
+    """Return 400 normalized dipeptide frequencies over the 20-AA alphabet.
+
+    Dipeptide frequencies capture the first layer of sequence order: which amino acids
+    prefer to appear adjacent to which others. These preferences encode secondary structure
+    propensities (e.g., Glu-Lys pairs favor alpha-helix; Pro disrupts it), coevolutionary
+    constraints, and folding nucleation signals. Scrambled sequences preserve monomer
+    composition but randomize all dipeptide statistics — making this feature group the
+    primary discriminator between biological and scrambled sequences, and the most
+    informative single block in the 429-feature vector for that classification task.
+    """
     aa_set = set(AMINO_ACIDS)
     counts = Counter()
     for i in range(len(sequence) - 1):
@@ -103,7 +146,24 @@ def get_dipeptide_frequencies(sequence):
 
 
 def get_physicochemical_features(sequence):
-    """Return 9 physicochemical properties from ProteinAnalysis; zeros if cleaned length < 10."""
+    """Return 9 whole-sequence physicochemical properties; zeros if cleaned length < 10.
+
+    These properties reflect chemistry that both evolution and computational design optimize,
+    but for different objectives:
+    - MW/residue: proxy for sequence complexity and average residue bulk.
+    - Aromaticity: Phe/Trp/Tyr fraction; aromatic residues are rare in natural proteins but
+      critical for hydrophobic core packing and binding hot-spots.
+    - Instability index: >40 predicts in-vivo instability (Guruprasad et al.); designed
+      binders are often specifically engineered for thermal stability.
+    - pI: designed binders may carry atypical charge distributions tuned for electrostatic
+      complementarity with the TolA binding surface.
+    - GRAVY (Grand Average of Hydropathicity): separates membrane proteins (positive) from
+      soluble globular proteins (negative); unfolded/scrambled sequences trend toward zero.
+    - Helix/turn/sheet fractions: predicted from Chou-Fasman propensities; AI-designed
+      proteins can adopt non-natural secondary structure distributions.
+    - Net charge/residue: (K+R-D-E)/length; charge balance shapes solubility and
+      complements the electrostatic surface of the binding partner.
+    """
     valid = set(AMINO_ACIDS)
     cleaned = "".join(c for c in sequence if c in valid)
     n = len(cleaned)
@@ -122,12 +182,26 @@ def get_physicochemical_features(sequence):
 
 
 def build_feature_vector(sequence):
-    """Concatenate amino acid, dipeptide, and physicochemical features into one list."""
+    """Concatenate all feature groups into the 429-element vector for one sequence.
+
+    The column order — AA composition (20) → dipeptides (400) → physicochemical (9) —
+    matches get_feature_names() and is the fixed input contract for all three models.
+    Changing this order without retraining silently corrupts predictions because tree
+    splits and linear coefficients are tied to specific column indices, not feature names.
+    """
     return get_aa_frequencies(sequence) + get_dipeptide_frequencies(sequence) + get_physicochemical_features(sequence)
 
 
 def compute_aa_freqs_from_sequences(sequences):
-    """Compute overall amino acid frequencies across sequences (standard AAs only in numerator)."""
+    """Compute background amino acid frequencies pooled across all sequences.
+
+    The resulting distribution (computed from the biological Swiss-Prot subset) represents
+    natural protein sequence space and serves as a reference against which designed and
+    scrambled sequences can be compared. By construction, scrambled sequences will match
+    this distribution exactly; deviations in the designed set reveal compositional biases
+    introduced by the AI design process (e.g., over-representation of binding-hot-spot
+    residues like Trp or Tyr).
+    """
     counts = Counter()
     total = 0
     for seq in sequences:
@@ -141,7 +215,14 @@ def compute_aa_freqs_from_sequences(sequences):
 
 
 def print_confusion_matrix_block(cm, class_names):
-    """Print formatted confusion matrix in the same style as v1, for any number of classes."""
+    """Print a formatted confusion matrix for 2- or 3-class problems.
+
+    Confusion matrices reveal which classes are being conflated, which matters scientifically.
+    The critical error to watch is Designed predicted as Biological — it means the model
+    cannot distinguish AI-designed binders from natural proteins, which undermines the core
+    research question. Biological-as-Scrambled errors are less consequential scientifically.
+    Always examine the Designed row (row 2) in 3-class mode.
+    """
     n = len(class_names)
     if n == 2:
         print("                 Predicted Bio  Predicted Scr")
@@ -161,7 +242,15 @@ def print_confusion_matrix_block(cm, class_names):
 
 
 def print_logistic_importance(model, feature_names, binary_mode, class_names):
-    """Print top logistic coefficients per class (multiclass) or toward each binary label."""
+    """Print the top logistic regression coefficients per class.
+
+    LR coefficients are direct linear weights and are biologically interpretable: a large
+    positive coefficient for feature X in the Designed class means sequences with high X
+    values are strongly pushed toward a Designed prediction. For example, a high coefficient
+    on the "WW" dipeptide for Designed would suggest Trp-Trp adjacency is a binder
+    signature. Features with large coefficients across multiple classes simultaneously are
+    compositionally ambiguous — the sign tells you which class is favored.
+    """
     coef = model.coef_
     if binary_mode:
         coefs = coef[0]
@@ -187,7 +276,15 @@ def print_logistic_importance(model, feature_names, binary_mode, class_names):
 
 
 def print_random_forest_importance(model, feature_names, top_n=20):
-    """Print top features by RandomForest feature_importances_."""
+    """Print the top features by mean decrease in impurity (MDI) importance.
+
+    Used for both RandomForest and XGBoost since both expose feature_importances_.
+    MDI ranks features by how much they reduce class uncertainty across all splits in the
+    ensemble. Features that rank highly across both tree models and LR are the most robust
+    discriminators — they matter regardless of inductive bias. Dipeptide features are
+    expected to dominate for bio-vs-scrambled; physicochemical features may dominate for
+    bio-vs-designed since the AI design process can alter global sequence chemistry.
+    """
     imp = model.feature_importances_
     order = np.argsort(imp)[::-1][:top_n]
     print(f"  Top {top_n} features by importance:")
@@ -196,7 +293,16 @@ def print_random_forest_importance(model, feature_names, top_n=20):
 
 
 def print_binder_prediction_table(seq_ids, y_pred, proba, class_names):
-    """Print binder predictions sorted by P(Biological) descending (proba column 0)."""
+    """Print per-binder class probabilities, sorted by P(Biological) descending.
+
+    Sorting by P(Biological) identifies the designed binders whose sequence statistics most
+    closely resemble natural proteins — the "most natural-looking" designs. A high
+    P(Biological) score may indicate a design that successfully recapitulates natural protein
+    sequence grammar, which is relevant for assessing how well the AI design tool generalizes
+    beyond its training distribution. Conversely, binders with high P(Designed) are the most
+    anomalous relative to natural sequence space — interesting candidates for understanding
+    what makes computational design mechanistically distinct.
+    """
     order = np.argsort(-proba[:, 0])
     header = (
         f"  {'Sequence ID':<42} {'Predicted':<14} "
@@ -214,6 +320,14 @@ def print_binder_prediction_table(seq_ids, y_pred, proba, class_names):
 
 
 def print_model_comparison_table(reports, accuracies, model_names, class_names):
+    """Print a side-by-side comparison table of all trained models.
+
+    F1 macro weights all classes equally regardless of size, which is appropriate here
+    because the three classes are imbalanced (500 bio, 500 scrambled, 110 designed).
+    Per-class F1(Designed) is the primary scientific metric: successfully identifying
+    AI-designed binders is the core research question, and a model that achieves high
+    overall accuracy by ignoring the small Designed class is not scientifically useful.
+    """
     print(f"  {'Model':<22} {'Accuracy':>10}  {'Precision(macro)':>16}  {'Recall(macro)':>13}  {'F1(macro)':>9}")
     for name, report, acc in zip(model_names, reports, accuracies):
         prec = report['macro avg']['precision']

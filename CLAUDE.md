@@ -53,14 +53,14 @@ reproducible run-to-run.
 
 | Model                 | Accuracy | F1 macro | F1 (Designed) | Notes                         |
 |-----------------------|----------|----------|---------------|-------------------------------|
-| LogisticRegression    | 67.12%   | 0.67     | 0.75          | Scaled features               |
-| RandomForestClassifier| 66.67%   | 0.66     | 0.93          | Unscaled features             |
-| XGBClassifier         | 69.82%   | 0.72     | 0.93          | Unscaled features; best overall|
+| LogisticRegression    | 67.12%   | 0.67     | 0.68          | Scaled features               |
+| RandomForestClassifier| 66.67%   | 0.74     | 0.95          | Unscaled features             |
+| XGBClassifier         | 69.82%   | 0.77     | 0.98          | Unscaled features; best overall|
 
 Key findings:
-- XGBoost is the best overall model (highest accuracy and F1 macro).
-- Both tree-based models (RF and XGBoost) dramatically outperform LR at identifying
-  Designed binders: F1 0.93 vs 0.75. LR confuses many binders with Biological sequences.
+- XGBoost is the best overall model (highest accuracy, F1 macro 0.77, F1 Designed 0.98).
+- Both tree-based models dramatically outperform LR at identifying Designed binders
+  (F1 0.95–0.98 vs 0.68). LR confuses most binders with Biological or Scrambled sequences.
 - For the scientific goal (identifying what makes AI-designed binders distinct),
   XGBoost is the preferred model.
 
