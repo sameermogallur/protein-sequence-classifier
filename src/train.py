@@ -1,5 +1,5 @@
-# protein_classifier_v2.py
-# Sameer Mogallur - Godzik Lab
+# train.py
+# #Protein Classifier - Sameer Mogallur - Godzik Lab
 #
 # Classifies biological vs scrambled (and optionally designed binder) protein sequences
 # using amino acid frequencies, dipeptide frequencies, and physicochemical features.
@@ -22,6 +22,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from xgboost import XGBClassifier
 
 
 # Constants
@@ -212,6 +213,26 @@ def print_binder_prediction_table(seq_ids, y_pred, proba, class_names):
         )
 
 
+def print_model_comparison_table(reports, accuracies, model_names, class_names):
+    print(f"  {'Model':<22} {'Accuracy':>10}  {'Precision(macro)':>16}  {'Recall(macro)':>13}  {'F1(macro)':>9}")
+    for name, report, acc in zip(model_names, reports, accuracies):
+        prec = report['macro avg']['precision']
+        rec  = report['macro avg']['recall']
+        f1   = report['macro avg']['f1-score']
+        print(f"  {name:<22} {acc:>9.2%}  {prec:>16.2f}  {rec:>13.2f}  {f1:>9.2f}")
+    print()
+    header = f"  {'Model':<22}"
+    for cn in class_names:
+        header += f"  {'F1(' + cn + ')':>14}"
+    print(header)
+    for name, report in zip(model_names, reports):
+        row = f"  {name:<22}"
+        for cn in class_names:
+            row += f"  {report[cn]['f1-score']:>14.2f}"
+        print(row)
+    print()
+
+
 # Main
 parser = argparse.ArgumentParser(
     description="Classify biological vs scrambled (and optionally designed binder) proteins from FASTA."
@@ -243,6 +264,7 @@ bio_sequences = load_fasta(fasta_path, max_sequences=500, min_length=50)
 if not bio_sequences:
     raise SystemExit(f"No sequences loaded from {fasta_path}. Check path and format.")
 
+random.seed(42)
 scrambled_sequences = [scramble_sequence(seq) for seq in bio_sequences]
 n_bio = len(bio_sequences)
 
@@ -315,6 +337,12 @@ lr_model = LogisticRegression(
     max_iter=2000, random_state=42, class_weight="balanced"
 )
 rf_model = RandomForestClassifier(n_estimators=200, random_state=42)
+xgb_model = XGBClassifier(
+    n_estimators=200,
+    random_state=42,
+    eval_metric='mlogloss' if three_class else 'logloss',
+    verbosity=0,
+)
 
 lr_model.fit(X_train_s, y_train)
 predictions_lr = lr_model.predict(X_test_s)
@@ -323,6 +351,7 @@ print("  --- LogisticRegression (scaled features) ---")
 print(f"  Accuracy: {accuracy_lr:.2%}\n")
 print("  Classification Report:")
 print(classification_report(y_test, predictions_lr, target_names=class_names))
+report_lr = classification_report(y_test, predictions_lr, target_names=class_names, output_dict=True)
 cm_lr = confusion_matrix(y_test, predictions_lr)
 print("  Confusion Matrix:")
 print_confusion_matrix_block(cm_lr, class_names)
@@ -335,9 +364,23 @@ print("  --- RandomForestClassifier (unscaled features) ---")
 print(f"  Accuracy: {accuracy_rf:.2%}\n")
 print("  Classification Report:")
 print(classification_report(y_test, predictions_rf, target_names=class_names))
+report_rf = classification_report(y_test, predictions_rf, target_names=class_names, output_dict=True)
 cm_rf = confusion_matrix(y_test, predictions_rf)
 print("  Confusion Matrix:")
 print_confusion_matrix_block(cm_rf, class_names)
+print()
+
+xgb_model.fit(X_train, y_train)
+predictions_xgb = xgb_model.predict(X_test)
+accuracy_xgb = (predictions_xgb == y_test).mean()
+print("  --- XGBClassifier (unscaled features) ---")
+print(f"  Accuracy: {accuracy_xgb:.2%}\n")
+print("  Classification Report:")
+print(classification_report(y_test, predictions_xgb, target_names=class_names))
+report_xgb = classification_report(y_test, predictions_xgb, target_names=class_names, output_dict=True)
+cm_xgb = confusion_matrix(y_test, predictions_xgb)
+print("  Confusion Matrix:")
+print_confusion_matrix_block(cm_xgb, class_names)
 print()
 
 # Step 4: Feature importance
@@ -349,6 +392,10 @@ print()
 
 print("  RandomForestClassifier:")
 print_random_forest_importance(rf_model, feature_names, top_n=20)
+print()
+
+print("  XGBClassifier:")
+print_random_forest_importance(xgb_model, feature_names, top_n=20)
 print()
 
 # Step 5: Per-binder predictions (3-class only)
@@ -366,3 +413,16 @@ if three_class:
     pred_rf_b = rf_model.predict(X_binder)
     print_binder_prediction_table(binder_ids, pred_rf_b, proba_rf_b, class_names)
     print()
+    print("  XGBClassifier (unscaled binder features):")
+    proba_xgb_b = xgb_model.predict_proba(X_binder)
+    pred_xgb_b  = xgb_model.predict(X_binder)
+    print_binder_prediction_table(binder_ids, pred_xgb_b, proba_xgb_b, class_names)
+    print()
+
+print("Model Comparison")
+print_model_comparison_table(
+    [report_lr, report_rf, report_xgb],
+    [accuracy_lr, accuracy_rf, accuracy_xgb],
+    ["LogisticRegression", "RandomForestClassifier", "XGBClassifier"],
+    class_names,
+)
