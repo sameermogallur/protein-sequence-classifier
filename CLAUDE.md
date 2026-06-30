@@ -106,6 +106,26 @@ Do not commit data files.
 
 ---
 
+## Known Issues / Refactor TODOs
+
+1. **No `if __name__ == "__main__":` guard** — argparse and all execution code run at module
+   level. Goal 4 (clustering) will need to import feature-building functions (e.g.
+   `build_feature_vector`, `get_feature_names`) from this file; without the guard, any
+   import triggers the full training pipeline. Fix this before adding clustering as a
+   separate script or module.
+
+2. **`print_random_forest_importance` is reused for XGBoost** (Step 4 in the pipeline).
+   This works because both models expose `feature_importances_`, but the name is misleading
+   at the call site. Rename to something model-agnostic (e.g. `print_tree_importance`)
+   during the next refactor pass.
+
+3. **`DEFAULT_FASTA_PATH` (line 30) is stale** — points to `~/Downloads/`, but data now
+   lives in `data/raw/`. Not currently breaking anything since `--fasta` is always passed
+   explicitly in the documented run command, but the default should be updated or removed
+   during refactor to avoid confusion.
+
+---
+
 ## Constraints
 
 - Do not change feature count (429) or feature order without explicit instruction
