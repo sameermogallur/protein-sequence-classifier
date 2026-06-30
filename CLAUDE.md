@@ -133,3 +133,8 @@ Semantic commit prefix required on every commit:
 - `chore:` dependencies, config
 
 End-of-session habit: `git add -A && git commit -m "type: description" && git push origin main`
+
+--
+
+## Output Convention
+Save run outputs to results/ as descriptive .txt files (e.g. results/baseline_xgboost.txt).
