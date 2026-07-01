@@ -217,6 +217,8 @@ Semantic commit prefix required on every commit:
 - `exp:` experiment run or results update
 - `chore:` dependencies, config
 
+Do not add `Co-Authored-By` or any AI attribution to commit messages.
+
 End-of-session habit: `git add -A && git commit -m "type: description" && git push origin main`
 
 --
