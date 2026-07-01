@@ -142,3 +142,156 @@ Cluster composition summary:
     lpg0944_4xa9_a_l87_s880725_mpnn1_model2_B  cluster 0
     lpg0944_4xa9_a_l88_s669909_mpnn14_model2_B  cluster 0
     lpg0944_4xa9_a_l88_s669909_mpnn3_model2_B  cluster 0
+
+============================================================
+Bio-only clustering: natural subtypes in biological sequences
+============================================================
+
+Building feature matrices (bio-only + designed)...
+  Bio matrix:      500 × 429
+  Designed matrix: 110 × 429
+
+Elbow method (k = 2 to 8, bio sequences only)...
+  Best k: 7
+  Elbow plot saved to /Users/samsharma/Projects/protein-sequence-classifier/src/../results/figures/clustering_bio_only_elbow.png
+
+K-means clustering (k=7, bio sequences only)...
+  Cluster sizes: {0: 142, 1: 7, 2: 91, 3: 91, 4: 1, 5: 141, 6: 27}
+
+  Cluster physicochemical profile:
+   Cluster      N     GRAVY   Instability   Net charge/res  Label
+  --------------------------------------------------------------------
+         0    142    -0.171          42.2          -0.0059  Disordered
+         1      7    -0.601          34.9          -0.0290  Soluble
+         2     91    -0.615          53.4          -0.0158  Disordered
+         3     91    -0.335          37.7          -0.0123  Soluble
+         4      1    -0.572          48.7           0.1404  Disordered
+         5    141    -0.113          34.8          -0.0153  Soluble
+         6     27    -0.267          45.0           0.0222  Disordered
+
+PCA (2 components, fit on bio-only)...
+  PC1: 4.3%  PC2: 3.4%  (total: 7.6%)
+
+Saving bio-only PCA plot...
+  PCA plot saved to /Users/samsharma/Projects/protein-sequence-classifier/src/../results/figures/clustering_bio_only_pca.png
+
+  Designed binders — nearest biological cluster (by PCA centroid distance):
+    Cluster 0 (Disordered):  3 binders
+    Cluster 1 (Soluble):  6 binders
+    Cluster 2 (Disordered):  43 binders
+    Cluster 3 (Soluble):  33 binders
+    Cluster 4 (Disordered):  0 binders
+    Cluster 5 (Soluble):  17 binders
+    Cluster 6 (Disordered):  8 binders
+
+  Per-binder assignments:
+    TolA_III_6s3w_l136_s737523_mpnn2_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l139_s407842_mpnn5_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l100_s199085_mpnn10_model2            → Cluster 3 (Soluble)
+    TolA_III_6s3w_l136_s737523_mpnn1_model1             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l82_s541331_mpnn10_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l127_s996199_mpnn2_model1             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l97_s741123_mpnn8_model2              → Cluster 2 (Disordered)
+    TolA_III_6s3w_l113_s645730_mpnn10_model1            → Cluster 3 (Soluble)
+    TolA_III_6s3w_l143_s725268_mpnn2_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l105_s685922_mpnn4_model1             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l99_s673276_mpnn11_model1             → Cluster 2 (Disordered)
+    3-TolA-III_complex_l90_s751958_mpnn2_model2         → Cluster 2 (Disordered)
+    TolA_III_6s3w_l132_s116694_mpnn12_model1            → Cluster 2 (Disordered)
+    TolA_III_6s3w_l105_s685922_mpnn6_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l96_s964230_mpnn9_model2              → Cluster 2 (Disordered)
+    1-TolA-III_complex_l87_s176785_mpnn20_model1        → Cluster 3 (Soluble)
+    TolA_III_6s3w_l132_s980057_mpnn9_model2             → Cluster 3 (Soluble)
+    TolA_III_6s3w_l139_s407842_mpnn3_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l109_s729257_mpnn18_model2            → Cluster 3 (Soluble)
+    TolA_III_6s3w_l150_s685010_mpnn14_model2            → Cluster 3 (Soluble)
+    TolA_III_6s3w_l74_s357762_mpnn17_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l108_s854087_mpnn2_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l98_s375237_mpnn9_model1              → Cluster 3 (Soluble)
+    TolA_III_6s3w_l112_s126997_mpnn4_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l93_s509206_mpnn5_model2              → Cluster 3 (Soluble)
+    TolA_III_6s3w_l93_s509206_mpnn2_model2              → Cluster 3 (Soluble)
+    TolA_III_6s3w_l135_s737415_mpnn14_model2            → Cluster 2 (Disordered)
+    TolA_III_6s3w_l132_s980057_mpnn11_model1            → Cluster 3 (Soluble)
+    TolA_III_6s3w_l113_s645730_mpnn16_model2            → Cluster 2 (Disordered)
+    TolA_III_6s3w_l146_s15872_mpnn20_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l77_s253329_mpnn2_model1              → Cluster 2 (Disordered)
+    2-TolA-III_complex_l90_s751958_mpnn3_model2         → Cluster 2 (Disordered)
+    TolA_III_6s3w_l127_s418137_mpnn16_model2            → Cluster 3 (Soluble)
+    TolA_III_6s3w_l126_s277889_mpnn6_model1             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l108_s854087_mpnn3_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l77_s253329_mpnn5_model1              → Cluster 2 (Disordered)
+    TolA_III_6s3w_l98_s375237_mpnn7_model1              → Cluster 3 (Soluble)
+    TolA_III_6s3w_l127_s996199_mpnn3_model2             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l143_s725268_mpnn3_model1             → Cluster 2 (Disordered)
+    TolA_III_6s3w_l131_s709682_mpnn7_model1             → Cluster 3 (Soluble)
+    TolA_III_6s3w_l96_s964230_mpnn15_model2             → Cluster 2 (Disordered)
+    latent                                              → Cluster 3 (Soluble)
+    latent                                              → Cluster 6 (Disordered)
+    latent                                              → Cluster 0 (Disordered)
+    latent                                              → Cluster 3 (Soluble)
+    latent                                              → Cluster 6 (Disordered)
+    latent                                              → Cluster 3 (Soluble)
+    latent                                              → Cluster 6 (Disordered)
+    2_lpg0945_bindcraft_3_l127_s802372_mpnn1_model2_B   → Cluster 2 (Disordered)
+    3_lpg0945_bindcraft_3_l127_s802372_mpnn11_model2_B  → Cluster 2 (Disordered)
+    1_lpg0945_bindcraft_3_l125_s345020_mpnn13_model2_B  → Cluster 3 (Soluble)
+    4_lpg0945_bindcraft_3_l122_s549392_mpnn10_model2_B  → Cluster 2 (Disordered)
+    latent                                              → Cluster 1 (Soluble)
+    rank001_design_272_B                                → Cluster 6 (Disordered)
+    rank006_design_298_B                                → Cluster 5 (Soluble)
+    rank004_design_348_B                                → Cluster 6 (Disordered)
+    rank008_design_312_B                                → Cluster 5 (Soluble)
+    rank007_design_099_B                                → Cluster 5 (Soluble)
+    rank005_design_073_B                                → Cluster 5 (Soluble)
+    rank001_design_365_B                                → Cluster 5 (Soluble)
+    rank010_design_460_B                                → Cluster 5 (Soluble)
+    rank006_design_412_B                                → Cluster 5 (Soluble)
+    rank002_design_458_B                                → Cluster 5 (Soluble)
+    rank002_design_290_B                                → Cluster 5 (Soluble)
+    rank008_design_183_B                                → Cluster 5 (Soluble)
+    rank004_design_336_B                                → Cluster 5 (Soluble)
+    rank009_design_168_B                                → Cluster 6 (Disordered)
+    rank005_design_435_B                                → Cluster 5 (Soluble)
+    rank003_design_397_B                                → Cluster 5 (Soluble)
+    rank003_design_145_B                                → Cluster 5 (Soluble)
+    rank007_design_318_B                                → Cluster 6 (Disordered)
+    rank010_design_357_B                                → Cluster 5 (Soluble)
+    rank009_design_492_B                                → Cluster 6 (Disordered)
+    latent                                              → Cluster 1 (Soluble)
+    latent                                              → Cluster 3 (Soluble)
+    latent                                              → Cluster 0 (Disordered)
+    latent                                              → Cluster 1 (Soluble)
+    latent                                              → Cluster 1 (Soluble)
+    latent                                              → Cluster 2 (Disordered)
+    latent                                              → Cluster 1 (Soluble)
+    latent                                              → Cluster 5 (Soluble)
+    3_lpg0945_bindcraft_1_l123_s200413_mpnn4_model1_B   → Cluster 2 (Disordered)
+    1_lpg0945_bindcraft_1_l124_s66702_mpnn20_model2_B   → Cluster 3 (Soluble)
+    4_lpg0945_bindcraft_1_l121_s772610_mpnn4_model1_B   → Cluster 2 (Disordered)
+    2_lpg0945_bindcraft_1_l123_s200413_mpnn6_model1_B   → Cluster 2 (Disordered)
+    0945_latent                                         → Cluster 3 (Soluble)
+    0945_latent                                         → Cluster 5 (Soluble)
+    0945_latent                                         → Cluster 0 (Disordered)
+    0945_latent                                         → Cluster 3 (Soluble)
+    0945_latent                                         → Cluster 1 (Soluble)
+    3_lpg0945_bindcraft_2_l122_s897448_mpnn9_model1_B   → Cluster 2 (Disordered)
+    2_lpg0945_bindcraft_2_l126_s315321_mpnn8_model2_B   → Cluster 2 (Disordered)
+    1_lpg0945_bindcraft_2_l124_s79903_mpnn1_model1_B    → Cluster 3 (Soluble)
+    RAVj_l95_s778240_mpnn5_model2_B                     → Cluster 3 (Soluble)
+    RAVj_l95_s778240_mpnn12_model2_B                    → Cluster 3 (Soluble)
+    RAVj_l147_s620757_mpnn15_model2_B                   → Cluster 3 (Soluble)
+    RAVj_l147_s620757_mpnn17_model2_B                   → Cluster 2 (Disordered)
+    RAVj_l146_s280413_mpnn3_model2_B                    → Cluster 2 (Disordered)
+    RAVj_l150_s983467_mpnn11_model2_B                   → Cluster 3 (Soluble)
+    lpg0944_4xa9_a_l106_s297673_mpnn2_model1_B          → Cluster 3 (Soluble)
+    lpg0944_4xa9_a_l122_s954268_mpnn7_model2_B          → Cluster 3 (Soluble)
+    lpg0944_4xa9_a_l122_s954268_mpnn10_model1_B         → Cluster 3 (Soluble)
+    lpg0944_4xa9_a_l106_s297673_mpnn17_model1_B         → Cluster 2 (Disordered)
+    lpg0944_4xa9_a_l80_s717555_mpnn17_model2_B          → Cluster 2 (Disordered)
+    lpg0944_4xa9_a_l114_s314104_mpnn9_model2_B          → Cluster 3 (Soluble)
+    lpg0944_4xa9_a_l114_s314104_mpnn7_model2_B          → Cluster 3 (Soluble)
+    lpg0944_4xa9_a_l87_s880725_mpnn3_model2_B           → Cluster 2 (Disordered)
+    lpg0944_4xa9_a_l87_s880725_mpnn1_model2_B           → Cluster 3 (Soluble)
+    lpg0944_4xa9_a_l88_s669909_mpnn14_model2_B          → Cluster 3 (Soluble)
+    lpg0944_4xa9_a_l88_s669909_mpnn3_model2_B           → Cluster 2 (Disordered)

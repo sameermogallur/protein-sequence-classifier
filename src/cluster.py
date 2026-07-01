@@ -180,6 +180,191 @@ def print_cluster_summary(cluster_labels, class_labels, designed_ids, best_k):
         print(f"    {seq_id:<40}  cluster {k}")
 
 
+def label_clusters_by_physicochemistry(X_bio, cluster_labels, best_k):
+    """Compute mean physicochemical stats per bio cluster and assign interpretive labels.
+
+    Uses raw (unscaled) feature values so means are biologically interpretable.
+    Feature indices: instability_index=422, gravy=424, net_charge_per_residue=428.
+    Labeling heuristic: GRAVY>0 → Membrane-like; instability>40 → Disordered; else → Soluble.
+    """
+    IDX_INSTABILITY = 422
+    IDX_GRAVY = 424
+    IDX_NET_CHARGE = 428
+
+    print("\n  Cluster physicochemical profile:")
+    print(f"  {'Cluster':>8}  {'N':>5}  {'GRAVY':>8}  {'Instability':>12}  {'Net charge/res':>15}  Label")
+    print("  " + "-" * 68)
+
+    cluster_names = {}
+    for k in range(best_k):
+        mask = cluster_labels == k
+        X_k = X_bio[mask]
+        mean_gravy = X_k[:, IDX_GRAVY].mean()
+        mean_inst = X_k[:, IDX_INSTABILITY].mean()
+        mean_charge = X_k[:, IDX_NET_CHARGE].mean()
+
+        if mean_gravy > 0.0:
+            label = "Membrane-like"
+        elif mean_inst > 40.0:
+            label = "Disordered"
+        else:
+            label = "Soluble"
+
+        cluster_names[k] = label
+        print(f"  {k:>8}  {mask.sum():>5}  {mean_gravy:>8.3f}  {mean_inst:>12.1f}  {mean_charge:>15.4f}  {label}")
+
+    return cluster_names
+
+
+def save_bio_only_elbow_plot(k_range, inertias, best_k, out_path):
+    """Save elbow plot for bio-only clustering."""
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(k_range, inertias, "o-", color="steelblue", linewidth=2, markersize=6)
+    ax.axvline(best_k, color="crimson", linestyle="--", linewidth=1.5,
+               label=f"Selected k={best_k}")
+    ax.set_xlabel("Number of clusters (k)")
+    ax.set_ylabel("Inertia (within-cluster sum of squares)")
+    ax.set_title("K-means elbow — biological sequences only (429 features)")
+    ax.set_xticks(k_range)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"  Elbow plot saved to {out_path}")
+
+
+def save_bio_only_pca_plot(X_bio_2d, bio_cluster_labels, X_des_2d,
+                            best_k, cluster_names, var1, var2, out_path):
+    """Save PCA plot with bio sequences colored by cluster and designed binders projected in.
+
+    Fitting PCA on bio-only sequences preserves the biological coordinate system;
+    designed binders are transformed into that space to reveal which subtype they resemble.
+    """
+    cmap = plt.colormaps["tab10"].resampled(best_k)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    for k in range(best_k):
+        mask = bio_cluster_labels == k
+        color = cmap(k / max(best_k - 1, 1))
+        ax.scatter(
+            X_bio_2d[mask, 0], X_bio_2d[mask, 1],
+            color=color, marker="o", s=25, alpha=0.6,
+            edgecolors="none", zorder=2,
+        )
+
+    ax.scatter(
+        X_des_2d[:, 0], X_des_2d[:, 1],
+        color="crimson", marker="*", s=220, alpha=1.0,
+        edgecolors="black", linewidths=0.4, zorder=5,
+    )
+
+    ax.set_xlabel(f"PC1 ({var1:.1f}% variance explained)")
+    ax.set_ylabel(f"PC2 ({var2:.1f}% variance explained)")
+    ax.set_title(f"Designed binders projected into biological PCA space — k={best_k} clusters")
+
+    bio_handles = [
+        mpatches.Patch(color=cmap(k / max(best_k - 1, 1)),
+                       label=f"Cluster {k} — {cluster_names[k]}")
+        for k in range(best_k)
+    ]
+    des_handle = plt.scatter([], [], marker="*", color="crimson", s=120,
+                             edgecolors="black", linewidths=0.4, label="Designed binders")
+    bio_handles.append(des_handle)
+
+    ax.legend(handles=bio_handles, title="Biological clusters", fontsize=8, title_fontsize=8,
+              loc="best")
+    ax.grid(True, alpha=0.2)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"  PCA plot saved to {out_path}")
+
+
+def print_bio_projection_summary(X_des_2d, X_bio_2d, bio_cluster_labels,
+                                  designed_ids, best_k, cluster_names):
+    """Print how many designed binders project nearest to each biological cluster.
+
+    Nearest cluster is determined by Euclidean distance from each binder's 2D PCA
+    point to the centroid of each bio cluster in the same 2D space.
+    """
+    centroids = np.array([
+        X_bio_2d[bio_cluster_labels == k].mean(axis=0) for k in range(best_k)
+    ])
+
+    nearest = []
+    for des_pt in X_des_2d:
+        dists = np.linalg.norm(centroids - des_pt, axis=1)
+        nearest.append(int(np.argmin(dists)))
+
+    print("\n  Designed binders — nearest biological cluster (by PCA centroid distance):")
+    for k in range(best_k):
+        count = nearest.count(k)
+        print(f"    Cluster {k} ({cluster_names[k]}):  {count} binders")
+
+    print()
+    print("  Per-binder assignments:")
+    for i, (seq_id, k) in enumerate(zip(designed_ids, nearest)):
+        print(f"    {seq_id:<50}  → Cluster {k} ({cluster_names[k]})")
+
+
+def run_bio_only_analysis(bio_sequences, designed_sequences, designed_ids):
+    """Cluster biological sequences alone and project designed binders into that space.
+
+    This answers the core scientific question: which biological protein subtype
+    (membrane / soluble / disordered) do the designed TolA binders most resemble?
+    Keeping scrambled sequences out of the clustering ensures that natural biological
+    structure drives the grouping rather than the composition-preserving noise control.
+    """
+    print("Building feature matrices (bio-only + designed)...")
+    X_bio = np.array([build_feature_vector(seq) for seq in bio_sequences])
+    X_des = np.array([build_feature_vector(seq) for seq in designed_sequences])
+    print(f"  Bio matrix:      {X_bio.shape[0]} × {X_bio.shape[1]}")
+    print(f"  Designed matrix: {X_des.shape[0]} × {X_des.shape[1]}")
+
+    scaler_bio = StandardScaler()
+    X_bio_scaled = scaler_bio.fit_transform(X_bio)
+    X_des_scaled = scaler_bio.transform(X_des)
+
+    k_range = list(range(2, 9))
+    print(f"\nElbow method (k = {k_range[0]} to {k_range[-1]}, bio sequences only)...")
+    inertias = run_elbow(X_bio_scaled, k_range)
+    best_k = find_elbow_k(inertias, k_range)
+    print(f"  Best k: {best_k}")
+    save_bio_only_elbow_plot(
+        k_range, inertias, best_k,
+        os.path.join(FIGURES_DIR, "clustering_bio_only_elbow.png"),
+    )
+
+    print(f"\nK-means clustering (k={best_k}, bio sequences only)...")
+    km = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+    bio_cluster_labels = km.fit_predict(X_bio_scaled)
+    print(f"  Cluster sizes: { {k: int((bio_cluster_labels == k).sum()) for k in range(best_k)} }")
+
+    cluster_names = label_clusters_by_physicochemistry(X_bio, bio_cluster_labels, best_k)
+
+    print("\nPCA (2 components, fit on bio-only)...")
+    pca = PCA(n_components=2, random_state=42)
+    X_bio_2d = pca.fit_transform(X_bio_scaled)
+    X_des_2d = pca.transform(X_des_scaled)
+    var1, var2 = pca.explained_variance_ratio_ * 100
+    print(f"  PC1: {var1:.1f}%  PC2: {var2:.1f}%  (total: {var1 + var2:.1f}%)")
+
+    print("\nSaving bio-only PCA plot...")
+    save_bio_only_pca_plot(
+        X_bio_2d, bio_cluster_labels, X_des_2d, best_k,
+        cluster_names, var1, var2,
+        os.path.join(FIGURES_DIR, "clustering_bio_only_pca.png"),
+    )
+
+    print_bio_projection_summary(
+        X_des_2d, X_bio_2d, bio_cluster_labels, designed_ids, best_k, cluster_names
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Unsupervised clustering and PCA visualization of protein sequences."
@@ -249,6 +434,12 @@ def main():
 
     # --- Step 7: Cluster summary ---
     print_cluster_summary(cluster_labels, class_labels, designed_ids, best_k)
+
+    # --- Analysis 2: Bio-only clustering + designed binder projection ---
+    print("\n" + "=" * 60)
+    print("Bio-only clustering: natural subtypes in biological sequences")
+    print("=" * 60 + "\n")
+    run_bio_only_analysis(bio_sequences, designed_sequences, designed_ids)
 
 
 if __name__ == "__main__":
