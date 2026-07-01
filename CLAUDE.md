@@ -70,13 +70,13 @@ Validation: single 80/20 train/test split. Not cross-validated yet.
 
 ## Clustering Results (Goal 4) — COMPLETE
 
-Two analyses implemented in `src/cluster.py`. Run command:
+Three analyses implemented in `src/cluster.py`. Run command:
 ```
 python src/cluster.py --fasta data/raw/...fasta.gz --binders data/raw/Binders.fasta
 ```
 
 ### Analysis 1: Full-matrix clustering (bio + scrambled + designed, 1110 sequences)
-K-means on 429-feature matrix. Elbow → k=7. PCA top 2 PCs: 4.6% + 3.4% = 8.0%.
+K-means on 429-feature matrix. Elbow → k=7. PCA top 2 PCs: 8.0% variance.
 
 | Cluster | Bio | Scrambled | Designed | Character                                      |
 |---------|-----|-----------|----------|------------------------------------------------|
@@ -88,45 +88,63 @@ K-means on 429-feature matrix. Elbow → k=7. PCA top 2 PCs: 4.6% + 3.4% = 8.0%.
 
 Key findings:
 - 79% of designed binders (87/110) in clusters 0 + 2 — clearly distinct from biological space.
-- Design programs separate cleanly: TolA_III/BindCraft/RAVj → cluster 0; rank_design → cluster 2.
-- `latent` and `0945_latent` sequences scatter into biological clusters (4–6) — most realistic.
+- Design programs separate cleanly by sequence statistics: TolA_III/BindCraft/RAVj → cluster 0;
+  rank_design → cluster 2.
+- `latent` and `0945_latent` scatter into biological clusters (4–6) — most realistic programs.
 
-### Analysis 2: Bio-only clustering + designed binder projection
-K-means on 500 biological sequences only. Elbow → k=7. PCA fit on bio; designed binders
-transformed in. Clusters labeled by mean GRAVY, instability index, net charge.
+### Analysis 2: Bio-only 429-feature clustering + designed binder projection
+K-means on 500 biological sequences only. Elbow → k=7. PCA fit on bio; binders projected in.
+Clusters labeled by mean GRAVY (idx 424), instability (idx 422), net charge (idx 428).
+PCA: 7.6% variance (dipeptide features dominate; physicochemical nearly invisible at 2.1%).
 
 | Cluster | N   | GRAVY  | Instability | Label      |
 |---------|-----|--------|-------------|------------|
 | 0       | 142 | -0.171 | 42.2        | Disordered |
-| 1       | 7   | -0.601 | 34.9        | Soluble    |
 | 2       | 91  | -0.615 | 53.4        | Disordered |
 | 3       | 91  | -0.335 | 37.7        | Soluble    |
-| 4       | 1   | -0.572 | 48.7        | Disordered |
 | 5       | 141 | -0.113 | 34.8        | Soluble    |
-| 6       | 27  | -0.267 | 45.0        | Disordered |
+| others  | 35  | varied | varied      | Soluble/Dis|
 
-Designed binder projection (nearest bio cluster centroid in PCA space):
-- Cluster 2 (Disordered): 43 binders — TolA_III hallucination designs
-- Cluster 3 (Soluble):    33 binders — RAVj, lpg0944, some TolA_III
-- Cluster 5 (Soluble):    17 binders — rank_design (most soluble-like)
-- Cluster 6 (Disordered):  8 binders — mixed
-- Remaining clusters:      9 binders
+Binders project mostly outside the biological cloud. Binders landing in Soluble clusters:
+rank_design (17, cluster 5), RAVj/lpg0944 (split), latent/0945_latent (mostly Soluble).
+TolA_III hallucination → Disordered (cluster 2, instability 53.4).
 
-Design program summary:
-- **rank_design** → Soluble (cluster 5) — closest to biological core, most realistic
-- **latent / 0945_latent** → mostly Soluble — second-most realistic
-- **TolA_III hallucination** → Disordered (cluster 2, instability 53.4)
-- **RAVj / lpg0944** → split Soluble/Disordered
+### Analysis 3: Physicochemical-only clustering (9 features, indices 420-428)
+Hypothesis tested: dipeptide features (400) contribute 93.2% of K-means distance signal after
+StandardScaler, making GRAVY geometrically invisible. Clustering on 9 features only lets GRAVY
+and instability drive the geometry.
 
-Known limitation: No membrane-like clusters emerged (all GRAVY < 0). The current
-Swiss-Prot sample is likely soluble-biased. To properly test Dr. Godzik's membrane /
-soluble / disordered hypothesis, a curated sample with representative membrane proteins
-and IDPs is needed. This is the next data collection step.
+Result: k=4 by elbow. PCA explains 50.7% of variance (28.5% + 22.3%) — far more interpretable.
 
-Output files:
-- results/figures/clustering_elbow.png, clustering_pca.png (full-matrix)
-- results/figures/clustering_bio_only_elbow.png, clustering_bio_only_pca.png (bio-only)
-- results/clustering_run.txt
+| Cluster | N   | GRAVY  | Instability | Label      |
+|---------|-----|--------|-------------|------------|
+| 0       | 209 | -0.173 | 37.3        | Soluble    |
+| 1       | 98  | -0.427 | 45.5        | Disordered |
+| 2       | 123 | -0.182 | 38.3        | Soluble    |
+| 3       | 70  | -0.547 | 53.2        | Disordered |
+
+Still no membrane cluster despite GRAVY having full geometric weight. Conclusion: the
+Swiss-Prot sample is genuinely soluble-biased, not a feature-weighting artifact. The 73
+sequences with GRAVY > 0 (14.6%) don't cohere into a membrane cluster even when GRAVY
+drives the geometry — they are scattered across other physicochemical dimensions.
+
+Binders project INTO the biological core in physicochemical space (scattered across all 4 clusters).
+latent / 0945_latent → consistently Soluble across both bio-only analyses.
+
+rank_design discordance: Soluble dipeptide patterns (Analysis 2) but Disordered physicochemistry
+(Analysis 3, cluster 3, instability 53.2). Two feature spaces give opposite answers for this
+design program — worth flagging to Dr. Godzik.
+
+Next step for membrane analysis: curate a balanced UniProt dataset using
+`reviewed:true AND ft_transmem:[1 TO *]` for membrane, `keyword:KW-0597` for IDPs,
+and `cc_scl_term:cytoplasm AND NOT ft_transmem:[1 TO *]` for soluble. Re-run bio-only
+and physicochemical-only analyses on the curated set.
+
+Output files (results/figures/):
+- clustering_elbow.png, clustering_pca.png (Analysis 1)
+- clustering_bio_only_elbow.png, clustering_bio_only_pca.png (Analysis 2)
+- clustering_physico_only_elbow.png, clustering_physico_only_pca.png (Analysis 3)
+- results/clustering_run.txt (full terminal output)
 
 ---
 
@@ -141,30 +159,22 @@ Do not commit data files.
 
 ---
 
-## Immediate Goals (in order — do not skip ahead)
+## Goals — ALL COMPLETE
 
-### 1. Add XGBoost as third model
-- Same train/test split, same random_state, same features as existing models
-- XGBoost takes raw features (like RandomForest, no scaling needed)
-- Use `XGBClassifier` from the `xgboost` package
-
-### 2. Clean model comparison table
-- Print a single table at the end comparing all three models side by side
-- Columns: Model, Accuracy, Precision (macro), Recall (macro), F1 (macro)
-- Also per-class F1 for each model in the same table or a follow-up table
-- Replace the current per-model printing with this unified output
-
-### 3. Docstrings with biological reasoning
-- Every function needs a docstring explaining not just what the code does but WHY 
-  biologically (e.g., why dipeptide frequencies matter for classification)
-- Update existing docstrings to include biological context
-
+### 1. Add XGBoost as third model ✓ COMPLETE
+### 2. Clean model comparison table ✓ COMPLETE
+### 3. Docstrings with biological reasoning ✓ COMPLETE
 ### 4. Unsupervised clustering ✓ COMPLETE
-Implemented in `src/cluster.py`. See Clustering Results section above for full findings.
+See Clustering Results section for full findings across all three analyses.
 
-Remaining scientific gap: the Swiss-Prot sample is soluble-biased — no membrane clusters
-emerged. Next step (not yet implemented) is to curate a balanced bio sample with membrane,
-soluble, and IDP representatives before re-running the bio-only analysis.
+## Remaining Work
+
+- **Refactor** — rename `print_random_forest_importance` → `print_tree_importance`;
+  remove stale `DEFAULT_FASTA_PATH` default
+- **README** — project overview, run commands, results summary for new collaborators
+- **LICENSE** — add appropriate open-source license
+- **Membrane analysis** — curate balanced UniProt dataset (membrane / soluble / IDP)
+  and re-run bio-only and physicochemical-only clustering on it
 
 ---
 
