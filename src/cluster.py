@@ -365,6 +365,78 @@ def run_bio_only_analysis(bio_sequences, designed_sequences, designed_ids):
     )
 
 
+def run_physicochemical_only_analysis(bio_sequences, designed_sequences, designed_ids):
+    """Cluster biological sequences on the 9 physicochemical features only (indices 420-428).
+
+    Hypothesis: in the 429-feature space, dipeptide features (400) contribute 93.2% of
+    K-means distance signal after StandardScaler, making GRAVY and instability index
+    geometrically invisible. Restricting to the 9 physicochemical features gives them
+    equal weight, which should allow membrane/soluble/disordered structure to emerge if
+    it exists in this sample.
+    """
+    PHYSICO_SLICE = slice(420, 429)
+
+    print("Building feature matrices (bio-only + designed, physicochemical slice)...")
+    X_bio = np.array([build_feature_vector(seq) for seq in bio_sequences])
+    X_des = np.array([build_feature_vector(seq) for seq in designed_sequences])
+
+    X_bio_p = X_bio[:, PHYSICO_SLICE]   # (500, 9)
+    X_des_p = X_des[:, PHYSICO_SLICE]   # (110, 9)
+    print(f"  Bio matrix (physico):      {X_bio_p.shape[0]} × {X_bio_p.shape[1]}")
+    print(f"  Designed matrix (physico): {X_des_p.shape[0]} × {X_des_p.shape[1]}")
+
+    scaler_p = StandardScaler()
+    X_bio_ps = scaler_p.fit_transform(X_bio_p)
+    X_des_ps = scaler_p.transform(X_des_p)
+
+    k_range = list(range(2, 9))
+    print(f"\nElbow method (k = {k_range[0]} to {k_range[-1]}, 9 physicochemical features)...")
+    inertias = run_elbow(X_bio_ps, k_range)
+    best_k = find_elbow_k(inertias, k_range)
+    print(f"  Best k: {best_k}")
+
+    elbow_path = os.path.join(FIGURES_DIR, "clustering_physico_only_elbow.png")
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(k_range, inertias, "o-", color="steelblue", linewidth=2, markersize=6)
+    ax.axvline(best_k, color="crimson", linestyle="--", linewidth=1.5, label=f"Selected k={best_k}")
+    ax.set_xlabel("Number of clusters (k)")
+    ax.set_ylabel("Inertia (within-cluster sum of squares)")
+    ax.set_title("K-means elbow — 9 physicochemical features only")
+    ax.set_xticks(k_range)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(elbow_path, dpi=150)
+    plt.close(fig)
+    print(f"  Elbow plot saved to {elbow_path}")
+
+    print(f"\nK-means clustering (k={best_k}, physicochemical features only)...")
+    km = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+    bio_cluster_labels = km.fit_predict(X_bio_ps)
+    print(f"  Cluster sizes: { {k: int((bio_cluster_labels == k).sum()) for k in range(best_k)} }")
+
+    # Pass full X_bio so label_clusters_by_physicochemistry can use absolute indices 422/424/428
+    cluster_names = label_clusters_by_physicochemistry(X_bio, bio_cluster_labels, best_k)
+
+    print("\nPCA (2 components, fit on 9 physicochemical features, bio-only)...")
+    pca = PCA(n_components=2, random_state=42)
+    X_bio_2d = pca.fit_transform(X_bio_ps)
+    X_des_2d = pca.transform(X_des_ps)
+    var1, var2 = pca.explained_variance_ratio_ * 100
+    print(f"  PC1: {var1:.1f}%  PC2: {var2:.1f}%  (total: {var1 + var2:.1f}%)")
+
+    print("\nSaving physicochemical-only PCA plot...")
+    save_bio_only_pca_plot(
+        X_bio_2d, bio_cluster_labels, X_des_2d, best_k,
+        cluster_names, var1, var2,
+        os.path.join(FIGURES_DIR, "clustering_physico_only_pca.png"),
+    )
+
+    print_bio_projection_summary(
+        X_des_2d, X_bio_2d, bio_cluster_labels, designed_ids, best_k, cluster_names
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Unsupervised clustering and PCA visualization of protein sequences."
@@ -440,6 +512,13 @@ def main():
     print("Bio-only clustering: natural subtypes in biological sequences")
     print("=" * 60 + "\n")
     run_bio_only_analysis(bio_sequences, designed_sequences, designed_ids)
+
+    # --- Analysis 3: Physicochemical-only clustering ---
+    print("\n" + "=" * 60)
+    print("Physicochemical-only clustering (9 features, indices 420-428)")
+    print("Hypothesis: dipeptide dominance masked membrane/soluble/disordered structure")
+    print("=" * 60 + "\n")
+    run_physicochemical_only_analysis(bio_sequences, designed_sequences, designed_ids)
 
 
 if __name__ == "__main__":
