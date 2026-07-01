@@ -1,0 +1,255 @@
+"""
+Unsupervised clustering of biological, scrambled, and designed protein sequences.
+
+Scientific goal: reveal natural groupings in the 429-feature sequence space and
+show where the 110 designed TolA binders land relative to biological sub-clusters
+(membrane / soluble / disordered proteins are expected to form distinct groups).
+"""
+
+import argparse
+import os
+import random
+import sys
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
+sys.path.insert(0, os.path.dirname(__file__))
+from train import (
+    build_feature_vector,
+    load_fasta,
+    load_fasta_plain_with_ids,
+    scramble_sequence,
+)
+
+FIGURES_DIR = os.path.join(os.path.dirname(__file__), "..", "results", "figures")
+
+
+def build_feature_matrix(bio_sequences, scrambled_sequences, designed_sequences):
+    """Build the 429-feature matrix for all sequences and return it with class labels.
+
+    Class labels: 0=Biological, 1=Scrambled, 2=Designed.
+    Order within each class is preserved so indices can be mapped back to IDs.
+    """
+    all_seqs = bio_sequences + scrambled_sequences + designed_sequences
+    n_bio = len(bio_sequences)
+    n_scr = len(scrambled_sequences)
+    n_des = len(designed_sequences)
+
+    X = np.array([build_feature_vector(seq) for seq in all_seqs])
+    class_labels = np.array([0] * n_bio + [1] * n_scr + [2] * n_des)
+    return X, class_labels
+
+
+def find_elbow_k(inertias, k_range):
+    """Return best k using maximum second derivative of the inertia curve.
+
+    The second derivative peaks where the inertia curve bends most sharply —
+    the classic elbow. No external dependencies required.
+    """
+    deltas = np.diff(inertias)
+    accel = np.diff(deltas)
+    # accel[0] corresponds to the change at k_range[2] (third k value)
+    best_idx = int(np.argmax(accel)) + 2
+    return k_range[best_idx]
+
+
+def run_elbow(X_scaled, k_range):
+    """Fit K-means for each k in k_range and return inertias."""
+    inertias = []
+    for k in k_range:
+        km = KMeans(n_clusters=k, random_state=42, n_init=10)
+        km.fit(X_scaled)
+        inertias.append(km.inertia_)
+    return inertias
+
+
+def save_elbow_plot(k_range, inertias, best_k, out_path):
+    """Save elbow plot with a vertical line marking best_k."""
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(k_range, inertias, "o-", color="steelblue", linewidth=2, markersize=6)
+    ax.axvline(best_k, color="crimson", linestyle="--", linewidth=1.5,
+               label=f"Selected k={best_k}")
+    ax.set_xlabel("Number of clusters (k)")
+    ax.set_ylabel("Inertia (within-cluster sum of squares)")
+    ax.set_title("K-means elbow method — 429-feature protein space")
+    ax.set_xticks(k_range)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"  Elbow plot saved to {out_path}")
+
+
+def save_pca_plot(X_2d, class_labels, cluster_labels, best_k,
+                  var1, var2, out_path):
+    """Save PCA scatter plot with class shape and cluster color encoding.
+
+    Shape encodes sequence origin (bio/scrambled/designed).
+    Color encodes K-means cluster assignment, consistent across classes.
+    Designed binders are plotted last so they render on top.
+    """
+    cmap = plt.colormaps["tab10"].resampled(best_k)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    # Plot bio and scrambled first, designed last (higher zorder)
+    class_specs = [
+        (0, "o",  20,  0.45, "none",    "Biological"),
+        (1, "^",  20,  0.30, "none",    "Scrambled"),
+        (2, "*",  220, 1.00, "black",   "Designed binders"),
+    ]
+
+    for cls_idx, marker, size, alpha, edgecolor, label in class_specs:
+        mask = class_labels == cls_idx
+        zorder = 5 if cls_idx == 2 else 2
+        ax.scatter(
+            X_2d[mask, 0], X_2d[mask, 1],
+            c=cluster_labels[mask],
+            cmap=cmap, vmin=0, vmax=best_k - 1,
+            marker=marker, s=size, alpha=alpha,
+            edgecolors=edgecolor, linewidths=0.4,
+            zorder=zorder,
+            label=label,
+        )
+
+    ax.set_xlabel(f"PC1 ({var1:.1f}% variance explained)")
+    ax.set_ylabel(f"PC2 ({var2:.1f}% variance explained)")
+    ax.set_title(f"PCA of 429-feature protein space — k={best_k} clusters")
+
+    # Legend: class shapes
+    shape_handles = [
+        plt.scatter([], [], marker="o",  color="grey",   s=30,  alpha=0.6,  label="Biological"),
+        plt.scatter([], [], marker="^",  color="grey",   s=30,  alpha=0.4,  label="Scrambled"),
+        plt.scatter([], [], marker="*",  color="grey",   s=120, alpha=1.0,
+                    edgecolors="black", linewidths=0.4,  label="Designed binders"),
+    ]
+    # Legend: cluster colors
+    cluster_handles = [
+        mpatches.Patch(color=cmap(k / max(best_k - 1, 1)), label=f"Cluster {k}") for k in range(best_k)
+    ]
+
+    leg1 = ax.legend(handles=shape_handles, title="Sequence origin",
+                     loc="upper left", fontsize=8, title_fontsize=8)
+    ax.add_artist(leg1)
+    ax.legend(handles=cluster_handles, title="K-means cluster",
+              loc="upper right", fontsize=8, title_fontsize=8)
+
+    ax.grid(True, alpha=0.2)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"  PCA plot saved to {out_path}")
+
+
+def print_cluster_summary(cluster_labels, class_labels, designed_ids, best_k):
+    """Print per-cluster breakdown: count of bio/scrambled/designed + binder IDs.
+
+    This lets us identify which clusters attract designed binders and infer
+    whether those binders look soluble, membrane-like, or disordered.
+    """
+    print("\nCluster composition summary:")
+    header = f"  {'Cluster':>8}  {'Biological':>12}  {'Scrambled':>12}  {'Designed':>10}"
+    print(header)
+    print("  " + "-" * (len(header) - 2))
+
+    des_mask = class_labels == 2
+
+    for k in range(best_k):
+        in_cluster = cluster_labels == k
+        n_bio = int(((class_labels == 0) & in_cluster).sum())
+        n_scr = int(((class_labels == 1) & in_cluster).sum())
+        n_des = int((des_mask & in_cluster).sum())
+        print(f"  {k:>8}  {n_bio:>12}  {n_scr:>12}  {n_des:>10}")
+
+    print()
+    print("  Designed binder cluster assignments:")
+    des_indices = np.where(des_mask)[0]
+    for i, idx in enumerate(des_indices):
+        seq_id = designed_ids[i] if i < len(designed_ids) else f"binder_{i}"
+        k = cluster_labels[idx]
+        print(f"    {seq_id:<40}  cluster {k}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Unsupervised clustering and PCA visualization of protein sequences."
+    )
+    parser.add_argument("--fasta", "-f", required=True,
+                        help="Path to gzipped biological FASTA (Swiss-Prot reviewed)")
+    parser.add_argument("--binders", "-b", required=True,
+                        help="Path to designed binder FASTA")
+    args = parser.parse_args()
+
+    os.makedirs(FIGURES_DIR, exist_ok=True)
+
+    # --- Step 1: Load data (mirrors train.py exactly) ---
+    print("Step 1: Loading sequences")
+    bio_sequences = load_fasta(args.fasta, max_sequences=500, min_length=50)
+    if not bio_sequences:
+        raise SystemExit(f"No sequences loaded from {args.fasta}")
+
+    random.seed(42)
+    scrambled_sequences = [scramble_sequence(seq) for seq in bio_sequences]
+
+    designed_ids, designed_sequences = load_fasta_plain_with_ids(args.binders, min_length=50)
+    if not designed_sequences:
+        raise SystemExit(f"No sequences loaded from {args.binders}")
+
+    print(f"  Biological:  {len(bio_sequences)}")
+    print(f"  Scrambled:   {len(scrambled_sequences)}")
+    print(f"  Designed:    {len(designed_sequences)}")
+    print(f"  Total:       {len(bio_sequences) + len(scrambled_sequences) + len(designed_sequences)}")
+
+    # --- Step 2: Build 429-feature matrix ---
+    print("\nStep 2: Building 429-feature matrix")
+    X, class_labels = build_feature_matrix(bio_sequences, scrambled_sequences, designed_sequences)
+    print(f"  Feature matrix: {X.shape[0]} × {X.shape[1]}")
+
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    # --- Step 3: Elbow method ---
+    print("\nStep 3: Elbow method (k = 2 to 10)")
+    k_range = list(range(2, 11))
+    inertias = run_elbow(X_scaled, k_range)
+    best_k = find_elbow_k(inertias, k_range)
+    print(f"  Best k (max second derivative): {best_k}")
+
+    elbow_path = os.path.join(FIGURES_DIR, "clustering_elbow.png")
+    save_elbow_plot(k_range, inertias, best_k, elbow_path)
+
+    # --- Step 4: K-means at best_k ---
+    print(f"\nStep 4: K-means clustering (k={best_k})")
+    km = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+    cluster_labels = km.fit_predict(X_scaled)
+    print(f"  Cluster sizes: { {k: int((cluster_labels == k).sum()) for k in range(best_k)} }")
+
+    # --- Step 5: PCA ---
+    print("\nStep 5: PCA (2 components)")
+    pca = PCA(n_components=2, random_state=42)
+    X_2d = pca.fit_transform(X_scaled)
+    var1, var2 = pca.explained_variance_ratio_ * 100
+    print(f"  PC1: {var1:.1f}%  PC2: {var2:.1f}%  (total: {var1 + var2:.1f}%)")
+
+    # --- Step 6: Save PCA plot ---
+    print("\nStep 6: Saving PCA plot")
+    pca_path = os.path.join(FIGURES_DIR, "clustering_pca.png")
+    save_pca_plot(X_2d, class_labels, cluster_labels, best_k,
+                  var1, var2, pca_path)
+
+    # --- Step 7: Cluster summary ---
+    print_cluster_summary(cluster_labels, class_labels, designed_ids, best_k)
+
+
+if __name__ == "__main__":
+    main()

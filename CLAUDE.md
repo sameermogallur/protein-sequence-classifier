@@ -68,6 +68,34 @@ Validation: single 80/20 train/test split. Not cross-validated yet.
 
 ---
 
+## Clustering Results (Goal 4)
+
+K-means on full 429-feature matrix (1110 sequences: 500 bio + 500 scrambled + 110 designed).
+Elbow method selected k=7. PCA top 2 PCs explain 8.0% of variance (4.6% + 3.4%).
+
+| Cluster | Biological | Scrambled | Designed | Notes                                         |
+|---------|-----------|-----------|----------|-----------------------------------------------|
+| 0       | 9         | 7         | 68       | TolA_III, BindCraft (lpg0945), RAVj, lpg0944 |
+| 1       | 171       | 170       | 0        | Pure biological/scrambled zone               |
+| 2       | 1         | 1         | 19       | rank_design_* sequences (distinct program)   |
+| 3       | 6         | 0         | 0        | Small biological-only cluster                |
+| 4       | 143       | 146       | 11       | Mostly bio/scrambled; some latent binders    |
+| 5       | 35        | 36        | 4        | Mostly bio/scrambled; some latent binders    |
+| 6       | 135       | 140       | 8        | Mostly bio/scrambled; some latent binders    |
+
+Key findings:
+- 79% of designed binders (87/110) land in clusters 0 and 2 — distinct from biological space.
+- Design program signal: TolA_III/BindCraft/RAVj designs → cluster 0; rank_design → cluster 2.
+- `latent` and `0945_latent` sequences scatter into biological clusters (4–6), suggesting
+  those designs look more realistic at the sequence composition level.
+- Biological sequences expected to form multiple sub-clusters (membrane/soluble/disordered)
+  confirmed by k=7 rather than k=3 being the natural grouping.
+
+Output files: results/figures/clustering_elbow.png, results/figures/clustering_pca.png,
+results/clustering_run.txt
+
+---
+
 ## Data Files (not committed to git — large/proprietary)
 
 - Biological sequences: UniProt Swiss-Prot reviewed, gzipped FASTA (~300MB), local path hardcoded in DEFAULT_FASTA_PATH
@@ -98,10 +126,23 @@ Do not commit data files.
 - Update existing docstrings to include biological context
 
 ### 4. Unsupervised clustering
-- K-means clustering on the 429 features (determine k with elbow method or k=3 as baseline)
-- PCA or UMAP dimensionality reduction for 2D visualization
-- Plot: biological, scrambled, and designed binders as three colors in reduced space
-- Show where the 110 TolA binders land relative to the natural protein clusters
+Scientific question (from Dr. Godzik): do the 110 designed TolA binders cluster with
+soluble proteins (expected, since TolA is periplasmic), or do some look non-biological?
+Which design programs produce sequences that look most realistic?
+
+Key insight: "Biological" is not one group. Membrane, soluble, and disordered/low-complexity
+proteins differ systematically in AA composition and dipeptide frequencies. Do not pre-assume
+k=3 — let the data reveal natural groupings.
+
+Implementation:
+- Run K-means on the full 429-feature matrix (all 1110 sequences: bio + scrambled + designed)
+- Use the elbow method to determine k; expect biological sequences to form multiple sub-clusters
+  (membrane / soluble / disordered) rather than one monolithic group
+- PCA for initial 2D visualization (UMAP optionally after)
+- Color points by cluster assignment; mark designed binders with a distinct marker shape
+  (e.g. star or triangle) so cluster membership and sequence origin are both visible
+- Annotate or flag which design programs produced binders that fall into soluble/biological clusters
+- Save plot to results/figures/clustering_pca.png
 - This is the scientific deliverable for Dr. Godzik — treat it as the main output
 
 ---

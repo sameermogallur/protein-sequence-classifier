@@ -347,196 +347,198 @@ def print_model_comparison_table(reports, accuracies, model_names, class_names):
     print()
 
 
-# Main
-parser = argparse.ArgumentParser(
-    description="Classify biological vs scrambled (and optionally designed binder) proteins from FASTA."
-)
-parser.add_argument(
-    "--fasta",
-    "-f",
-    default=DEFAULT_FASTA_PATH,
-    help="Path to FASTA file (.fasta or .fasta.gz)",
-)
-parser.add_argument(
-    "--binders",
-    "-b",
-    default=None,
-    help="Optional path to non-gzipped FASTA of designed binder sequences (adds Class 2)",
-)
-args = parser.parse_args()
-fasta_path = args.fasta
-binders_path = args.binders
 
-three_class = binders_path is not None
-class_names = ["Biological", "Scrambled", "Designed"] if three_class else ["Biological", "Scrambled"]
+if __name__ == "__main__":
+    # Main
+    parser = argparse.ArgumentParser(
+        description="Classify biological vs scrambled (and optionally designed binder) proteins from FASTA."
+    )
+    parser.add_argument(
+        "--fasta",
+        "-f",
+        default=DEFAULT_FASTA_PATH,
+        help="Path to FASTA file (.fasta or .fasta.gz)",
+    )
+    parser.add_argument(
+        "--binders",
+        "-b",
+        default=None,
+        help="Optional path to non-gzipped FASTA of designed binder sequences (adds Class 2)",
+    )
+    args = parser.parse_args()
+    fasta_path = args.fasta
+    binders_path = args.binders
 
-# Step 1: Load data
-print("Step 1: Load data")
-print(f"  FASTA file: {fasta_path}\n")
+    three_class = binders_path is not None
+    class_names = ["Biological", "Scrambled", "Designed"] if three_class else ["Biological", "Scrambled"]
 
-bio_sequences = load_fasta(fasta_path, max_sequences=500, min_length=50)
-if not bio_sequences:
-    raise SystemExit(f"No sequences loaded from {fasta_path}. Check path and format.")
+    # Step 1: Load data
+    print("Step 1: Load data")
+    print(f"  FASTA file: {fasta_path}\n")
 
-random.seed(42)
-scrambled_sequences = [scramble_sequence(seq) for seq in bio_sequences]
-n_bio = len(bio_sequences)
+    bio_sequences = load_fasta(fasta_path, max_sequences=500, min_length=50)
+    if not bio_sequences:
+        raise SystemExit(f"No sequences loaded from {fasta_path}. Check path and format.")
 
-binder_ids = []
-binder_sequences = []
-if three_class:
-    binder_ids, binder_sequences = load_fasta_plain_with_ids(binders_path, min_length=50)
-    if not binder_sequences:
-        raise SystemExit(f"No sequences loaded from {binders_path}. Check path and format.")
+    random.seed(42)
+    scrambled_sequences = [scramble_sequence(seq) for seq in bio_sequences]
+    n_bio = len(bio_sequences)
 
-all_sequences = bio_sequences + scrambled_sequences + binder_sequences
-labels = [0] * n_bio + [1] * n_bio + ([2] * len(binder_sequences) if three_class else [])
+    binder_ids = []
+    binder_sequences = []
+    if three_class:
+        binder_ids, binder_sequences = load_fasta_plain_with_ids(binders_path, min_length=50)
+        if not binder_sequences:
+            raise SystemExit(f"No sequences loaded from {binders_path}. Check path and format.")
 
-aa_freqs = compute_aa_freqs_from_sequences(bio_sequences)
+    all_sequences = bio_sequences + scrambled_sequences + binder_sequences
+    labels = [0] * n_bio + [1] * n_bio + ([2] * len(binder_sequences) if three_class else [])
 
-print(f"  Biological: {n_bio} sequences (real UniProt)")
-print(f"  Scrambled: {n_bio} sequences (shuffled biological sequences)")
-if three_class:
-    print(f"  Designed: {len(binder_sequences)} sequences (binder FASTA)")
-print(f"  Mode: {'3-class (Biological / Scrambled / Designed)' if three_class else 'binary (Biological / Scrambled)'}")
-print("\n  Amino acid frequencies in biological data:")
-for aa in AMINO_ACIDS:
-    print(f"    {aa}: {aa_freqs[aa]:.4f}")
-print()
+    aa_freqs = compute_aa_freqs_from_sequences(bio_sequences)
 
-# Step 2: Feature extraction
-print("Step 2: Feature extraction")
-print("  Feature breakdown:")
-print("    Amino acid frequencies:  20")
-print("    Dipeptide frequencies:   400")
-print("    Physicochemical:         9")
-print("    Total:                   429")
-print()
-
-X = np.array([build_feature_vector(seq) for seq in all_sequences])
-y = np.array(labels)
-
-print(f"  Feature matrix: {X.shape[0]} sequences × {X.shape[1]} features\n")
-
-bio_avg = X[:n_bio, :20].mean(axis=0)
-scr_avg = X[n_bio : 2 * n_bio, :20].mean(axis=0)
-
-print("  Average amino acid frequencies by class (first 20 features):")
-if three_class:
-    des_avg = X[2 * n_bio :, :20].mean(axis=0)
-    print(f"  {'AA':<4} {'Biological':>12} {'Scrambled':>12} {'Designed':>12}")
-    for i, aa in enumerate(AMINO_ACIDS):
-        print(f"  {aa:<4} {bio_avg[i]:>12.4f} {scr_avg[i]:>12.4f} {des_avg[i]:>12.4f}")
-else:
-    print(f"  {'AA':<4} {'Biological':>12} {'Scrambled':>12} {'Difference':>12}")
-    for i, aa in enumerate(AMINO_ACIDS):
-        diff = bio_avg[i] - scr_avg[i]
-        print(f"  {aa:<4} {bio_avg[i]:>12.4f} {scr_avg[i]:>12.4f} {diff:>+12.4f}")
-print()
-
-# Step 3: Train and evaluate
-print("Step 3: Train and evaluate")
-print("  Splitting 80% train / 20% test (stratified); StandardScaler fit on train for logistic regression only.\n")
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-scaler = StandardScaler()
-X_train_s = scaler.fit_transform(X_train)
-X_test_s = scaler.transform(X_test)
-
-feature_names = get_feature_names()
-
-lr_model = LogisticRegression(
-    max_iter=2000, random_state=42, class_weight="balanced"
-)
-rf_model = RandomForestClassifier(n_estimators=200, random_state=42)
-xgb_model = XGBClassifier(
-    n_estimators=200,
-    random_state=42,
-    eval_metric='mlogloss' if three_class else 'logloss',
-    verbosity=0,
-)
-
-lr_model.fit(X_train_s, y_train)
-predictions_lr = lr_model.predict(X_test_s)
-accuracy_lr = (predictions_lr == y_test).mean()
-print("  --- LogisticRegression (scaled features) ---")
-print(f"  Accuracy: {accuracy_lr:.2%}\n")
-print("  Classification Report:")
-print(classification_report(y_test, predictions_lr, target_names=class_names))
-report_lr = classification_report(y_test, predictions_lr, target_names=class_names, output_dict=True)
-cm_lr = confusion_matrix(y_test, predictions_lr)
-print("  Confusion Matrix:")
-print_confusion_matrix_block(cm_lr, class_names)
-print()
-
-rf_model.fit(X_train, y_train)
-predictions_rf = rf_model.predict(X_test)
-accuracy_rf = (predictions_rf == y_test).mean()
-print("  --- RandomForestClassifier (unscaled features) ---")
-print(f"  Accuracy: {accuracy_rf:.2%}\n")
-print("  Classification Report:")
-print(classification_report(y_test, predictions_rf, target_names=class_names))
-report_rf = classification_report(y_test, predictions_rf, target_names=class_names, output_dict=True)
-cm_rf = confusion_matrix(y_test, predictions_rf)
-print("  Confusion Matrix:")
-print_confusion_matrix_block(cm_rf, class_names)
-print()
-
-xgb_model.fit(X_train, y_train)
-predictions_xgb = xgb_model.predict(X_test)
-accuracy_xgb = (predictions_xgb == y_test).mean()
-print("  --- XGBClassifier (unscaled features) ---")
-print(f"  Accuracy: {accuracy_xgb:.2%}\n")
-print("  Classification Report:")
-print(classification_report(y_test, predictions_xgb, target_names=class_names))
-report_xgb = classification_report(y_test, predictions_xgb, target_names=class_names, output_dict=True)
-cm_xgb = confusion_matrix(y_test, predictions_xgb)
-print("  Confusion Matrix:")
-print_confusion_matrix_block(cm_xgb, class_names)
-print()
-
-# Step 4: Feature importance
-print("Step 4: Feature importance")
-
-print("  LogisticRegression:")
-print_logistic_importance(lr_model, feature_names, binary_mode=not three_class, class_names=class_names)
-print()
-
-print("  RandomForestClassifier:")
-print_random_forest_importance(rf_model, feature_names, top_n=20)
-print()
-
-print("  XGBClassifier:")
-print_random_forest_importance(xgb_model, feature_names, top_n=20)
-print()
-
-# Step 5: Per-binder predictions (3-class only)
-if three_class:
-    print("Step 5: Per-binder prediction table")
-    X_binder = X[2 * n_bio :]
-    X_binder_s = scaler.transform(X_binder)
-    print("  LogisticRegression (scaled binder features):")
-    proba_lr_b = lr_model.predict_proba(X_binder_s)
-    pred_lr_b = lr_model.predict(X_binder_s)
-    print_binder_prediction_table(binder_ids, pred_lr_b, proba_lr_b, class_names)
-    print()
-    print("  RandomForestClassifier (unscaled binder features):")
-    proba_rf_b = rf_model.predict_proba(X_binder)
-    pred_rf_b = rf_model.predict(X_binder)
-    print_binder_prediction_table(binder_ids, pred_rf_b, proba_rf_b, class_names)
-    print()
-    print("  XGBClassifier (unscaled binder features):")
-    proba_xgb_b = xgb_model.predict_proba(X_binder)
-    pred_xgb_b  = xgb_model.predict(X_binder)
-    print_binder_prediction_table(binder_ids, pred_xgb_b, proba_xgb_b, class_names)
+    print(f"  Biological: {n_bio} sequences (real UniProt)")
+    print(f"  Scrambled: {n_bio} sequences (shuffled biological sequences)")
+    if three_class:
+        print(f"  Designed: {len(binder_sequences)} sequences (binder FASTA)")
+    print(f"  Mode: {'3-class (Biological / Scrambled / Designed)' if three_class else 'binary (Biological / Scrambled)'}")
+    print("\n  Amino acid frequencies in biological data:")
+    for aa in AMINO_ACIDS:
+        print(f"    {aa}: {aa_freqs[aa]:.4f}")
     print()
 
-print("Model Comparison")
-print_model_comparison_table(
-    [report_lr, report_rf, report_xgb],
-    [accuracy_lr, accuracy_rf, accuracy_xgb],
-    ["LogisticRegression", "RandomForestClassifier", "XGBClassifier"],
-    class_names,
-)
+    # Step 2: Feature extraction
+    print("Step 2: Feature extraction")
+    print("  Feature breakdown:")
+    print("    Amino acid frequencies:  20")
+    print("    Dipeptide frequencies:   400")
+    print("    Physicochemical:         9")
+    print("    Total:                   429")
+    print()
+
+    X = np.array([build_feature_vector(seq) for seq in all_sequences])
+    y = np.array(labels)
+
+    print(f"  Feature matrix: {X.shape[0]} sequences × {X.shape[1]} features\n")
+
+    bio_avg = X[:n_bio, :20].mean(axis=0)
+    scr_avg = X[n_bio : 2 * n_bio, :20].mean(axis=0)
+
+    print("  Average amino acid frequencies by class (first 20 features):")
+    if three_class:
+        des_avg = X[2 * n_bio :, :20].mean(axis=0)
+        print(f"  {'AA':<4} {'Biological':>12} {'Scrambled':>12} {'Designed':>12}")
+        for i, aa in enumerate(AMINO_ACIDS):
+            print(f"  {aa:<4} {bio_avg[i]:>12.4f} {scr_avg[i]:>12.4f} {des_avg[i]:>12.4f}")
+    else:
+        print(f"  {'AA':<4} {'Biological':>12} {'Scrambled':>12} {'Difference':>12}")
+        for i, aa in enumerate(AMINO_ACIDS):
+            diff = bio_avg[i] - scr_avg[i]
+            print(f"  {aa:<4} {bio_avg[i]:>12.4f} {scr_avg[i]:>12.4f} {diff:>+12.4f}")
+    print()
+
+    # Step 3: Train and evaluate
+    print("Step 3: Train and evaluate")
+    print("  Splitting 80% train / 20% test (stratified); StandardScaler fit on train for logistic regression only.\n")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+    scaler = StandardScaler()
+    X_train_s = scaler.fit_transform(X_train)
+    X_test_s = scaler.transform(X_test)
+
+    feature_names = get_feature_names()
+
+    lr_model = LogisticRegression(
+        max_iter=2000, random_state=42, class_weight="balanced"
+    )
+    rf_model = RandomForestClassifier(n_estimators=200, random_state=42)
+    xgb_model = XGBClassifier(
+        n_estimators=200,
+        random_state=42,
+        eval_metric='mlogloss' if three_class else 'logloss',
+        verbosity=0,
+    )
+
+    lr_model.fit(X_train_s, y_train)
+    predictions_lr = lr_model.predict(X_test_s)
+    accuracy_lr = (predictions_lr == y_test).mean()
+    print("  --- LogisticRegression (scaled features) ---")
+    print(f"  Accuracy: {accuracy_lr:.2%}\n")
+    print("  Classification Report:")
+    print(classification_report(y_test, predictions_lr, target_names=class_names))
+    report_lr = classification_report(y_test, predictions_lr, target_names=class_names, output_dict=True)
+    cm_lr = confusion_matrix(y_test, predictions_lr)
+    print("  Confusion Matrix:")
+    print_confusion_matrix_block(cm_lr, class_names)
+    print()
+
+    rf_model.fit(X_train, y_train)
+    predictions_rf = rf_model.predict(X_test)
+    accuracy_rf = (predictions_rf == y_test).mean()
+    print("  --- RandomForestClassifier (unscaled features) ---")
+    print(f"  Accuracy: {accuracy_rf:.2%}\n")
+    print("  Classification Report:")
+    print(classification_report(y_test, predictions_rf, target_names=class_names))
+    report_rf = classification_report(y_test, predictions_rf, target_names=class_names, output_dict=True)
+    cm_rf = confusion_matrix(y_test, predictions_rf)
+    print("  Confusion Matrix:")
+    print_confusion_matrix_block(cm_rf, class_names)
+    print()
+
+    xgb_model.fit(X_train, y_train)
+    predictions_xgb = xgb_model.predict(X_test)
+    accuracy_xgb = (predictions_xgb == y_test).mean()
+    print("  --- XGBClassifier (unscaled features) ---")
+    print(f"  Accuracy: {accuracy_xgb:.2%}\n")
+    print("  Classification Report:")
+    print(classification_report(y_test, predictions_xgb, target_names=class_names))
+    report_xgb = classification_report(y_test, predictions_xgb, target_names=class_names, output_dict=True)
+    cm_xgb = confusion_matrix(y_test, predictions_xgb)
+    print("  Confusion Matrix:")
+    print_confusion_matrix_block(cm_xgb, class_names)
+    print()
+
+    # Step 4: Feature importance
+    print("Step 4: Feature importance")
+
+    print("  LogisticRegression:")
+    print_logistic_importance(lr_model, feature_names, binary_mode=not three_class, class_names=class_names)
+    print()
+
+    print("  RandomForestClassifier:")
+    print_random_forest_importance(rf_model, feature_names, top_n=20)
+    print()
+
+    print("  XGBClassifier:")
+    print_random_forest_importance(xgb_model, feature_names, top_n=20)
+    print()
+
+    # Step 5: Per-binder predictions (3-class only)
+    if three_class:
+        print("Step 5: Per-binder prediction table")
+        X_binder = X[2 * n_bio :]
+        X_binder_s = scaler.transform(X_binder)
+        print("  LogisticRegression (scaled binder features):")
+        proba_lr_b = lr_model.predict_proba(X_binder_s)
+        pred_lr_b = lr_model.predict(X_binder_s)
+        print_binder_prediction_table(binder_ids, pred_lr_b, proba_lr_b, class_names)
+        print()
+        print("  RandomForestClassifier (unscaled binder features):")
+        proba_rf_b = rf_model.predict_proba(X_binder)
+        pred_rf_b = rf_model.predict(X_binder)
+        print_binder_prediction_table(binder_ids, pred_rf_b, proba_rf_b, class_names)
+        print()
+        print("  XGBClassifier (unscaled binder features):")
+        proba_xgb_b = xgb_model.predict_proba(X_binder)
+        pred_xgb_b  = xgb_model.predict(X_binder)
+        print_binder_prediction_table(binder_ids, pred_xgb_b, proba_xgb_b, class_names)
+        print()
+
+    print("Model Comparison")
+    print_model_comparison_table(
+        [report_lr, report_rf, report_xgb],
+        [accuracy_lr, accuracy_rf, accuracy_xgb],
+        ["LogisticRegression", "RandomForestClassifier", "XGBClassifier"],
+        class_names,
+    )
