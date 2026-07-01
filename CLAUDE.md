@@ -68,31 +68,65 @@ Validation: single 80/20 train/test split. Not cross-validated yet.
 
 ---
 
-## Clustering Results (Goal 4)
+## Clustering Results (Goal 4) — COMPLETE
 
-K-means on full 429-feature matrix (1110 sequences: 500 bio + 500 scrambled + 110 designed).
-Elbow method selected k=7. PCA top 2 PCs explain 8.0% of variance (4.6% + 3.4%).
+Two analyses implemented in `src/cluster.py`. Run command:
+```
+python src/cluster.py --fasta data/raw/...fasta.gz --binders data/raw/Binders.fasta
+```
 
-| Cluster | Biological | Scrambled | Designed | Notes                                         |
-|---------|-----------|-----------|----------|-----------------------------------------------|
-| 0       | 9         | 7         | 68       | TolA_III, BindCraft (lpg0945), RAVj, lpg0944 |
-| 1       | 171       | 170       | 0        | Pure biological/scrambled zone               |
-| 2       | 1         | 1         | 19       | rank_design_* sequences (distinct program)   |
-| 3       | 6         | 0         | 0        | Small biological-only cluster                |
-| 4       | 143       | 146       | 11       | Mostly bio/scrambled; some latent binders    |
-| 5       | 35        | 36        | 4        | Mostly bio/scrambled; some latent binders    |
-| 6       | 135       | 140       | 8        | Mostly bio/scrambled; some latent binders    |
+### Analysis 1: Full-matrix clustering (bio + scrambled + designed, 1110 sequences)
+K-means on 429-feature matrix. Elbow → k=7. PCA top 2 PCs: 4.6% + 3.4% = 8.0%.
+
+| Cluster | Bio | Scrambled | Designed | Character                                      |
+|---------|-----|-----------|----------|------------------------------------------------|
+| 0       | 9   | 7         | 68       | TolA_III, BindCraft (lpg0945), RAVj, lpg0944  |
+| 1       | 171 | 170       | 0        | Pure biological/scrambled zone                 |
+| 2       | 1   | 1         | 19       | rank_design_* sequences (distinct program)     |
+| 3       | 6   | 0         | 0        | Small biological-only cluster                  |
+| 4–6     | ~140| ~140      | 8–11     | Mostly bio/scrambled; latent binders mixed in  |
 
 Key findings:
-- 79% of designed binders (87/110) land in clusters 0 and 2 — distinct from biological space.
-- Design program signal: TolA_III/BindCraft/RAVj designs → cluster 0; rank_design → cluster 2.
-- `latent` and `0945_latent` sequences scatter into biological clusters (4–6), suggesting
-  those designs look more realistic at the sequence composition level.
-- Biological sequences expected to form multiple sub-clusters (membrane/soluble/disordered)
-  confirmed by k=7 rather than k=3 being the natural grouping.
+- 79% of designed binders (87/110) in clusters 0 + 2 — clearly distinct from biological space.
+- Design programs separate cleanly: TolA_III/BindCraft/RAVj → cluster 0; rank_design → cluster 2.
+- `latent` and `0945_latent` sequences scatter into biological clusters (4–6) — most realistic.
 
-Output files: results/figures/clustering_elbow.png, results/figures/clustering_pca.png,
-results/clustering_run.txt
+### Analysis 2: Bio-only clustering + designed binder projection
+K-means on 500 biological sequences only. Elbow → k=7. PCA fit on bio; designed binders
+transformed in. Clusters labeled by mean GRAVY, instability index, net charge.
+
+| Cluster | N   | GRAVY  | Instability | Label      |
+|---------|-----|--------|-------------|------------|
+| 0       | 142 | -0.171 | 42.2        | Disordered |
+| 1       | 7   | -0.601 | 34.9        | Soluble    |
+| 2       | 91  | -0.615 | 53.4        | Disordered |
+| 3       | 91  | -0.335 | 37.7        | Soluble    |
+| 4       | 1   | -0.572 | 48.7        | Disordered |
+| 5       | 141 | -0.113 | 34.8        | Soluble    |
+| 6       | 27  | -0.267 | 45.0        | Disordered |
+
+Designed binder projection (nearest bio cluster centroid in PCA space):
+- Cluster 2 (Disordered): 43 binders — TolA_III hallucination designs
+- Cluster 3 (Soluble):    33 binders — RAVj, lpg0944, some TolA_III
+- Cluster 5 (Soluble):    17 binders — rank_design (most soluble-like)
+- Cluster 6 (Disordered):  8 binders — mixed
+- Remaining clusters:      9 binders
+
+Design program summary:
+- **rank_design** → Soluble (cluster 5) — closest to biological core, most realistic
+- **latent / 0945_latent** → mostly Soluble — second-most realistic
+- **TolA_III hallucination** → Disordered (cluster 2, instability 53.4)
+- **RAVj / lpg0944** → split Soluble/Disordered
+
+Known limitation: No membrane-like clusters emerged (all GRAVY < 0). The current
+Swiss-Prot sample is likely soluble-biased. To properly test Dr. Godzik's membrane /
+soluble / disordered hypothesis, a curated sample with representative membrane proteins
+and IDPs is needed. This is the next data collection step.
+
+Output files:
+- results/figures/clustering_elbow.png, clustering_pca.png (full-matrix)
+- results/figures/clustering_bio_only_elbow.png, clustering_bio_only_pca.png (bio-only)
+- results/clustering_run.txt
 
 ---
 
@@ -125,37 +159,18 @@ Do not commit data files.
   biologically (e.g., why dipeptide frequencies matter for classification)
 - Update existing docstrings to include biological context
 
-### 4. Unsupervised clustering
-Scientific question (from Dr. Godzik): do the 110 designed TolA binders cluster with
-soluble proteins (expected, since TolA is periplasmic), or do some look non-biological?
-Which design programs produce sequences that look most realistic?
+### 4. Unsupervised clustering ✓ COMPLETE
+Implemented in `src/cluster.py`. See Clustering Results section above for full findings.
 
-Key insight: "Biological" is not one group. Membrane, soluble, and disordered/low-complexity
-proteins differ systematically in AA composition and dipeptide frequencies. Do not pre-assume
-k=3 — let the data reveal natural groupings.
-
-Implementation:
-- Run K-means on the full 429-feature matrix (all 1110 sequences: bio + scrambled + designed)
-- Use the elbow method to determine k; expect biological sequences to form multiple sub-clusters
-  (membrane / soluble / disordered) rather than one monolithic group
-- PCA for initial 2D visualization (UMAP optionally after)
-- Color points by cluster assignment; mark designed binders with a distinct marker shape
-  (e.g. star or triangle) so cluster membership and sequence origin are both visible
-- Annotate or flag which design programs produced binders that fall into soluble/biological clusters
-- Save plot to results/figures/clustering_pca.png
-- This is the scientific deliverable for Dr. Godzik — treat it as the main output
+Remaining scientific gap: the Swiss-Prot sample is soluble-biased — no membrane clusters
+emerged. Next step (not yet implemented) is to curate a balanced bio sample with membrane,
+soluble, and IDP representatives before re-running the bio-only analysis.
 
 ---
 
 ## Known Issues / Refactor TODOs
 
-1. **No `if __name__ == "__main__":` guard** — argparse and all execution code run at module
-   level. Goal 4 (clustering) will need to import feature-building functions (e.g.
-   `build_feature_vector`, `get_feature_names`) from this file; without the guard, any
-   import triggers the full training pipeline. Fix this before adding clustering as a
-   separate script or module.
-
-2. **`print_random_forest_importance` is reused for XGBoost** (Step 4 in the pipeline).
+1. **`print_random_forest_importance` is reused for XGBoost** (Step 4 in the pipeline).
    This works because both models expose `feature_importances_`, but the name is misleading
    at the call site. Rename to something model-agnostic (e.g. `print_tree_importance`)
    during the next refactor pass.
@@ -172,7 +187,6 @@ Implementation:
 - Do not change feature count (429) or feature order without explicit instruction
 - Keep --fasta and --binders CLI arguments working
 - Keep 2-class (binary) and 3-class modes both functional
-- Add `if __name__ == "__main__":` guard when refactoring
 - Do not commit data files (.fasta, .fasta.gz, .csv of sequences)
 
 ---
